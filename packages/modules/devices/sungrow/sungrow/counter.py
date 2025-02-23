@@ -72,7 +72,14 @@ class SungrowCounter(AbstractCounter):
 
         voltages = [value / 10 for value in voltages]
 
-        imported, exported = self.sim_counter.sim_count(power)
+        try:
+            imported = self.__tcp_client.read_input_registers(5746, ModbusDataType.UINT_32,
+                                                              wordorder=Endian.Little, unit=unit) * 10
+            exported = self.__tcp_client.read_input_registers(5748, ModbusDataType.UINT_32,
+                                                              wordorder=Endian.Little, unit=unit) * 10
+
+        except Exception as e:
+            imported, exported = self.sim_counter.sim_count(power)
 
         counter_state = CounterState(
             imported=imported,
