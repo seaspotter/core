@@ -21,6 +21,7 @@ class Get:
     fault_str: str = field(default=NO_ERROR, metadata={"topic": "get/fault_str"})
     power: float = field(default=0, metadata={"topic": "get/power"})
     power_limit_controllable: bool = field(default=False, metadata={"topic": "get/power_limit_controllable"})
+    power_limit_last_mode: str = field(default="auto", metadata={"topic": "get/power_limit_last_mode"})
 
 
 def get_factory() -> Get:
@@ -30,6 +31,7 @@ def get_factory() -> Get:
 @dataclass
 class Set:
     power_limit: float = field(default=0, metadata={"topic": "set/power_limit"})
+    power_limit_last_mode: str = field(default="auto", metadata={"topic": "set/power_limit_last_mode"})
 
 
 def set_factory() -> Set:
