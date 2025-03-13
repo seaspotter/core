@@ -71,22 +71,22 @@ class SungrowBat(AbstractBat):
 
         if power_limit is None:
             log.debug("Keine Batteriesteuerung, Selbstregelung durch Wechselrichter")
-            if self.component_config.power_limit_mode != "auto":
+            if self.component_config.power_limit_last_mode != "auto":
                 self.__tcp_client.write_registers(13049, [0], data_type=ModbusDataType.UINT_16, unit=unit)
                 self.__tcp_client.write_registers(13050, [0xCC], data_type=ModbusDataType.UINT_16, unit=unit)
-                self.component_config.power_limit_mode = "auto"
+                self.component_config.power_limit_last_mode = "auto"
         elif power_limit == 0:
             log.debug("Aktive Batteriesteuerung. Batterie wird auf Stop gesetzt und nicht entladen")
-            if self.component_config.power_limit_mode != "stop":
+            if self.component_config.power_limit_last_mode != "stop":
                 self.__tcp_client.write_registers(13049, [2], data_type=ModbusDataType.UINT_16, unit=unit)
                 self.__tcp_client.write_registers(13050, [0xCC], data_type=ModbusDataType.UINT_16, unit=unit)
-                self.component_config.power_limit_mode = "stop"
+                self.component_config.power_limit_last_mode = "stop"
         elif power_limit > 0:
             log.debug("Aktive Batteriesteuerung. Batterie wird mit {power_limit} W entladen für den Hausverbrauch")
-            if self.component_config.power_limit_mode != "discharge":
+            if self.component_config.power_limit_last_mode != "discharge":
                 self.__tcp_client.write_registers(13049, [2], data_type=ModbusDataType.UINT_16, unit=unit)
                 self.__tcp_client.write_registers(13050, [0xBB], data_type=ModbusDataType.UINT_16, unit=unit)
-                self.component_config.power_limit_mode = "discharge"
+                self.component_config.power_limit_last_mode = "discharge"
             # Die maximale Entladeleistung begrenzen auf 5000W, maximaler Wertebereich Modbusregister
             power_value = int(min(power_limit, 5000))
             self.__tcp_client.write_registers(13051, [power_value], data_type=ModbusDataType.UINT_16, unit=unit)
