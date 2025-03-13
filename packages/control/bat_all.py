@@ -50,6 +50,8 @@ class Config:
     configured: bool = field(default=False, metadata={"topic": "config/configured"})
     power_limit_mode: str = field(default=BatPowerLimitMode.NO_LIMIT.value,
                                   metadata={"topic": "config/power_limit_mode"})
+    power_limit_last_mode: str = field(default="auto", 
+                                       metadata={"topic": "config/power_limit_last_mode"})
 
 
 def config_factory() -> Config:
