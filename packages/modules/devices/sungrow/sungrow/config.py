@@ -45,6 +45,7 @@ class SungrowBatSetup(ComponentSetup[SungrowBatConfiguration]):
                  id: int = 0,
                  configuration: SungrowBatConfiguration = None) -> None:
         super().__init__(name, type, id, configuration or SungrowBatConfiguration())
+        self.power_limit_last_mode = "auto" 
 
 
 class SungrowCounterConfiguration:
