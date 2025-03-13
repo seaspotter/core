@@ -67,6 +67,7 @@ class Get:
     imported: float = field(default=0, metadata={"topic": "get/imported"})
     exported: float = field(default=0, metadata={"topic": "get/exported"})
     power: float = field(default=0, metadata={"topic": "get/power"})
+    power_limit_last_mode: str = field(default="auto", metadata={"topic": "get/power_limit_last_mode"})
 
 
 def get_factory() -> Get:
@@ -79,6 +80,7 @@ class Set:
         default=0, metadata={"topic": "set/charging_power_left"})
     power_limit: float = field(default=0, metadata={"topic": "set/power_limit"})
     regulate_up: bool = field(default=False, metadata={"topic": "set/regulate_up"})
+    power_limit_last_mode: str = field(default="auto", metadata={"topic": "set/power_limit_last_mode"})
 
 
 def set_factory() -> Set:
