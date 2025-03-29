@@ -41,11 +41,13 @@ class SungrowInverter(AbstractInverter):
                                                               wordorder=Endian.Little, unit=unit) * -1
 
         _, exported = self.sim_counter.sim_count(power)
+        _, imported = self.sim_counter.sim_count(power * -1)
 
         inverter_state = InverterState(
             power=power,
             dc_power=dc_power,
-            exported=exported
+            exported=exported,
+            imported=imported
         )
         self.store.set(inverter_state)
         return power
