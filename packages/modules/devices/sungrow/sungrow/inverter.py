@@ -40,8 +40,7 @@ class SungrowInverter(AbstractInverter):
             dc_power = self.__tcp_client.read_input_registers(5016, ModbusDataType.UINT_32,
                                                               wordorder=Endian.Little, unit=unit) * -1
 
-        _, exported = self.sim_counter.sim_count(power)
-        _, imported = self.sim_counter.sim_count(power * -1)
+        imported, exported = self.sim_counter.sim_count(power)
 
         inverter_state = InverterState(
             power=power,
