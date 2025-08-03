@@ -5,7 +5,10 @@ from ..vendor import vendor_descriptor
 
 
 class SaxpowerConfiguration:
-    def __init__(self, modbus_id: int = 64, ip_address: Optional[str] = None, port: int = 3600):
+    def __init__(self, 
+                 modbus_id: int = 64, 
+                 ip_address: Optional[str] = None, 
+                 port: int = 502):
         self.modbus_id = modbus_id
         self.ip_address = ip_address
         self.port = port
@@ -36,3 +39,16 @@ class SaxpowerBatSetup(ComponentSetup[SaxpowerBatConfiguration]):
                  id: int = 0,
                  configuration: SaxpowerBatConfiguration = None) -> None:
         super().__init__(name, type, id, configuration or SaxpowerBatConfiguration())
+
+class SaxpowerCounterConfiguration:
+    def __init__(self):
+        pass
+
+
+class SaxpowerCounterSetup(ComponentSetup[SaxpowerCounterConfiguration]):
+    def __init__(self,
+                 name: str = "Saxpower Zähler",
+                 type: str = "counter",
+                 id: int = 0,
+                 configuration: SaxpowerCounterConfiguration = None) -> None:
+        super().__init__(name, type, id, configuration or SaxpowerCounterConfiguration())
