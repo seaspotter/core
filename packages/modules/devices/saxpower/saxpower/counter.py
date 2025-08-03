@@ -30,6 +30,41 @@ class SaXpowerCounter(AbstractCounter):
         self.store = get_counter_value_store(self.component_config.id)
         self.fault_state = FaultState(ComponentInfo.from_component_config(self.component_config))
 
+def update(self, pv_power: float):
+    unit = self.device_config.configuration.modbus_id
+    power = self.__tcp_client.read_input_registers(40110, ModbusDataType.INT_16, wordorder=Endian.Little, unit=unit)
+    currents = self.__tcp_client.read_input_registers(40100, [ModbusDataType.INT_16] * 3,
+                                                  wordorder=Endian.Little, unit=unit) * 0.01
+    powers = self.__tcp_client.read_input_registers(40103, [ModbusDataType.INT_16] * 3,
+                                                  wordorder=Endian.Little, unit=unit)
+    power_factor = self.__tcp_client.read_input_registers(40106, ModbusDataType.INT_16, wordorder=Endian.Little, unit=unit)
+    voltages = self.__tcp_client.read_input_registers(40107, [ModbusDataType.INT_16] * 3,
+                                                  wordorder=Endian.Little, unit=unit) * 0.1
+    frequency = self.__tcp_client.read_input_registers(40087, ModbusDataType.UINT_16, wordorder=Endian.Little, unit=unit)
+
+    imported, exported = self.sim_counter.sim_count(power)
+
+    counter_state = CounterState(
+        imported=imported,
+        exported=exported,
+        power=power,
+        powers=powers,
+        voltages=voltages,
+        currents=currents,
+        frequency=frequency,
+        power=power,
+        power_factors=[power_factor] * 3
+    )
+    self.store.set(counter_state)
+
+
+
+
+
+
+
+
+
     def update(self, pv_power: float):
         unit = self.device_config.configuration.modbus_id
         power = self.__tcp_client.read_input_registers(13009, ModbusDataType.INT_32, wordorder=Endian.Little, unit=unit) * -1
