@@ -13,7 +13,7 @@ from modules.devices.saxpower.saxpower.config import SaxpowerCounterSetup
 
 class KwargsDict(TypedDict):
     device_id: int
-    client: modbus.ModbusTcpClient_
+    client: ModbusTcpClient_
     modbus_id: int
 
 
@@ -24,25 +24,27 @@ class SaXpowerCounter(AbstractCounter):
 
     def initialize(self) -> None:
          self.__device_id: int = self.kwargs['device_id']
-        self.__tcp_client: modbus.ModbusTcpClient_ = self.kwargs['client']
+        self.__tcp_client: ModbusTcpClient_ = self.kwargs['client']
         self.__modbus_id: int = self.kwargs['modbus_id']
         self.sim_counter = SimCounter(self.device_config.id, self.component_config.id, prefix="evu")
         self.store = get_counter_value_store(self.component_config.id)
         self.fault_state = FaultState(ComponentInfo.from_component_config(self.component_config))
 
 def update(self, pv_power: float):
-    unit = self.device_config.configuration.modbus_id
+    unit = self.__modbus_id
     power = self.__tcp_client.read_input_registers(40110, ModbusDataType.INT_16, wordorder=Endian.Little, unit=unit)
     currents = self.__tcp_client.read_input_registers(40100, [ModbusDataType.INT_16] * 3,
-                                                  wordorder=Endian.Little, unit=unit) * 0.01
+                                                  wordorder=Endian.Little, unit=unit)
     powers = self.__tcp_client.read_input_registers(40103, [ModbusDataType.INT_16] * 3,
                                                   wordorder=Endian.Little, unit=unit)
     power_factor = self.__tcp_client.read_input_registers(40106, ModbusDataType.INT_16, wordorder=Endian.Little, unit=unit)
     voltages = self.__tcp_client.read_input_registers(40107, [ModbusDataType.INT_16] * 3,
-                                                  wordorder=Endian.Little, unit=unit) * 0.1
+                                                  wordorder=Endian.Little, unit=unit)
     frequency = self.__tcp_client.read_input_registers(40087, ModbusDataType.UINT_16, wordorder=Endian.Little, unit=unit)
-
     imported, exported = self.sim_counter.sim_count(power)
+
+    currents = [value / 100 for value in currents]
+    voltages = [value / 10 for value in voltages]
 
     counter_state = CounterState(
         imported=imported,
@@ -56,32 +58,6 @@ def update(self, pv_power: float):
         power_factors=[power_factor] * 3
     )
     self.store.set(counter_state)
-
-
-
-
-
-
-
-
-
-    def update(self, pv_power: float):
-        unit = self.device_config.configuration.modbus_id
-        power = self.__tcp_client.read_input_registers(13009, ModbusDataType.INT_32, wordorder=Endian.Little, unit=unit) * -1
-
-
-        imported, exported = self.sim_counter.sim_count(power)
-
-        counter_state = CounterState(
-            imported=imported,
-            exported=exported,
-            power=power,
-            powers=powers,
-            voltages=voltages,
-            frequency=frequency,
-            power_factors=[power_factor] * 3
-        )
-        self.store.set(counter_state)
 
 
 component_descriptor = ComponentDescriptor(configuration_factory=SungrowCounterSetup)
