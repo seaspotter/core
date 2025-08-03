@@ -17,7 +17,7 @@ class KwargsDict(TypedDict):
     modbus_id: int
 
 
-class SaXpowerCounter(AbstractCounter):
+class SaxpowerCounter(AbstractCounter):
     def __init__(self, component_config: SaxpowerCounterSetup, **kwargs: Any) -> None:
         self.component_config = component_config
         self.kwargs: KwargsDict = kwargs
@@ -30,17 +30,16 @@ class SaXpowerCounter(AbstractCounter):
         self.store = get_counter_value_store(self.component_config.id)
         self.fault_state = FaultState(ComponentInfo.from_component_config(self.component_config))
 
-def update(self, pv_power: float):
-    unit = self.__modbus_id
-    power = self.__tcp_client.read_input_registers(40110, ModbusDataType.INT_16, wordorder=Endian.Little, unit=unit)
+def update(self):
+    power = self.__tcp_client.read_input_registers(40110, ModbusDataType.INT_16, wordorder=Endian.Little, unit=40)
     currents = self.__tcp_client.read_input_registers(40100, [ModbusDataType.INT_16] * 3,
-                                                  wordorder=Endian.Little, unit=unit)
+                                                  wordorder=Endian.Little, unit=40)
     powers = self.__tcp_client.read_input_registers(40103, [ModbusDataType.INT_16] * 3,
-                                                  wordorder=Endian.Little, unit=unit)
-    power_factor = self.__tcp_client.read_input_registers(40106, ModbusDataType.INT_16, wordorder=Endian.Little, unit=unit)
+                                                  wordorder=Endian.Little, unit=40)
+    power_factor = self.__tcp_client.read_input_registers(40106, ModbusDataType.INT_16, wordorder=Endian.Little, unit=40)
     voltages = self.__tcp_client.read_input_registers(40107, [ModbusDataType.INT_16] * 3,
-                                                  wordorder=Endian.Little, unit=unit)
-    frequency = self.__tcp_client.read_input_registers(40087, ModbusDataType.UINT_16, wordorder=Endian.Little, unit=unit)
+                                                  wordorder=Endian.Little, unit=40)
+    frequency = self.__tcp_client.read_input_registers(40087, ModbusDataType.UINT_16, wordorder=Endian.Little, unit=40)
     imported, exported = self.sim_counter.sim_count(power)
 
     currents = [value / 100 for value in currents]
