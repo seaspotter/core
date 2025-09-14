@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import logging
-from typing import TypedDict, Any
+from typing import TypedDict, Any, Optional
 
 from modules.common.abstract_device import AbstractBat
 from modules.common.component_state import BatState
@@ -28,6 +28,7 @@ class SunnyBoyBat(AbstractBat):
         self.__tcp_client: ModbusTcpClient_ = self.kwargs['client']
         self.store = get_bat_value_store(self.component_config.id)
         self.fault_state = FaultState(ComponentInfo.from_component_config(self.component_config))
+        self.last_mode = 'Undefined'
 
     def read(self) -> BatState:
         unit = self.component_config.configuration.modbus_id
@@ -59,6 +60,24 @@ class SunnyBoyBat(AbstractBat):
 
     def update(self) -> None:
         self.store.set(self.read())
+
+    def set_power_limit(self, power_limit: Optional[int]) -> None:
+        unit = self.component_config.configuration.modbus_id
+    
+        if power_limit is None:
+            log.debug("Keine Batteriesteuerung gefordert, deaktiviere externe Steuerung.")
+            if self.last_mode is not None:
+                self.__tcp_client.write_registers(40151, [803], data_type=ModbusDataType.UINT_32, unit=unit)
+                self.__tcp_client.write_registers(40149, [0], data_type=ModbusDataType.UINT_32, unit=unit)
+                self.last_mode = None
+        else:
+            log.debug("Aktive Batteriesteuerung vorhanden. Setze externe Steuerung.")
+            self.__tcp_client.write_registers(40151, [802], data_type=ModbusDataType.UINT_32, unit=unit)
+            self.__tcp_client.write_registers(40149, [abs(power_limit)], data_type=ModbusDataType.UINT_32, unit=unit)
+            self.last_mode = 'limited'
+
+    def power_limit_controllable(self) -> bool:
+        return True
 
 
 component_descriptor = ComponentDescriptor(configuration_factory=SmaSunnyBoyBatSetup)
