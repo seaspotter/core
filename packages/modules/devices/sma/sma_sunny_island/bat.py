@@ -53,12 +53,12 @@ class SunnyIslandBat(AbstractBat):
             log.debug("Keine Batteriesteuerung gefordert, deaktiviere externe Steuerung.")
             if self.last_mode is not None:
                 self.__tcp_client.write_registers(40151, [803], data_type=ModbusDataType.UINT_32, unit=unit)
-                self.__tcp_client.write_registers(40149, [0], data_type=ModbusDataType.UINT_32, unit=unit)
+                self.__tcp_client.write_registers(40149, [0], data_type=ModbusDataType.INT_32, unit=unit)
                 self.last_mode = None
         else:
             log.debug("Aktive Batteriesteuerung vorhanden. Setze externe Steuerung.")
             self.__tcp_client.write_registers(40151, [802], data_type=ModbusDataType.UINT_32, unit=unit)
-            self.__tcp_client.write_registers(40149, [abs(power_limit)], data_type=ModbusDataType.UINT_32, unit=unit)
+            self.__tcp_client.write_registers(40149, [-power_limit], data_type=ModbusDataType.INT_32, unit=unit)
             self.last_mode = 'limited'
 
     def power_limit_controllable(self) -> bool:
