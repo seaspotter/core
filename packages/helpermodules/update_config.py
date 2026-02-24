@@ -2748,18 +2748,15 @@ class UpdateConfig:
         self._append_datastore_version(109)
 
     def upgrade_datastore_110(self) -> None:
-            """
-            Migrate old single 'sungrow' devices into new modules:
-             - 'sungrow_sg' for SG family (no version field)
-             - 'sungrow_sh' for SH family (keeps numeric version 0 or 1)
-
-            Old version mapping:
-             * 0 -> sungrow_sh, version 0
-             * 1 -> sungrow_sg (remove version)
-             * 2 -> sungrow_sg (remove version)
-             * 3 -> sungrow_sh, version 1
-            Default for missing/unknown old version: sungrow_sg (no version).
-            """
+            # Migrate old single 'sungrow' devices into new modules:
+            # - 'sungrow_sg' for SG family (no version field)
+            # - 'sungrow_sh' for SH family (keeps numeric version 0 or 1)
+            # Old version mapping:
+            # * 0 -> sungrow_sh, version 0
+            # * 1 -> sungrow_sg (remove version)
+            # * 2 -> sungrow_sg (remove version)
+            # * 3 -> sungrow_sh, version 1
+            # Default for missing/unknown old version: sungrow_sg (no version).
             def upgrade(topic: str, payload) -> None:
                 if re.search(r"^openWB/system/device/[0-9]+$", topic) is not None:
                     device = decode_payload(payload)
