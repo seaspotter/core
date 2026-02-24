@@ -471,32 +471,22 @@ class BatAll:
 
     def get_charge_mode_manual_charge(self):
         # EVU Bezug vorhanden oder gewollte PV-Ladung aktiv
-        evu_power_valid = (data.data.counter_all_data.get_evu_counter().data.get.power >= -100 or
-                           self.data.config.power_limit_mode == BatPowerLimitMode.MODE_CHARGE_PV_PRODUCTION.value)
-        bat_power_valid = (self.data.get.power <= 0 or
-                           (self.data.get.power > 0 and
-                            self.data.config.power_limit_mode == BatPowerLimitMode.MODE_CHARGE_PV_PRODUCTION.value))
-        if (evu_power_valid and bat_power_valid):
-            if self.data.config.manual_mode == ManualMode.MANUAL_LIMIT.value:
+        evu_power_valid = data.data.counter_all_data.get_evu_counter().data.get.power >= -100
+        bat_power_valid = self.data.get.power <= 0
+        if self.data.config.manual_mode == ManualMode.MANUAL_CHARGE.value:
+            log.debug("Aktive Speichersteuerung: Manueller Modus - Speicher laden.")
+            return BatChargeMode.BAT_FORCE_CHARGE
+        elif self.data.config.manual_mode == ManualMode.MANUAL_LIMIT.value:
+            if (self.data.config.power_limit_mode == BatPowerLimitMode.MODE_CHARGE_PV_PRODUCTION.value or
+                    (evu_power_valid and bat_power_valid)):
+                # Limit nicht anwenden wenn viel Eingespeist ird oder der Speicher lädt
                 log.debug("Aktive Speichersteuerung: Manueller Modus - Regellimit anwenden.")
                 return BatChargeMode.BAT_USE_LIMIT
-            elif self.data.config.manual_mode == ManualMode.MANUAL_CHARGE.value:
-                log.debug("Aktive Speichersteuerung: Manueller Modus - Speicher laden.")
-                return BatChargeMode.BAT_FORCE_CHARGE
-            elif self.data.config.manual_mode == ManualMode.MANUAL_DISCHARGE.value:
-                log.debug("Aktive Speichersteuerung: Manueller Modus - Speicher entladen.")
-                return BatChargeMode.BAT_FORCE_DISCHARGE
             else:
-                log.debug("Aktive Speichersteuerung: Manueller Modus - Steuerung Aus.")
+                log.debug("Aktive Speichersteuerung: Manueller Modus - Kein Limit da Speicher lädt")
                 return BatChargeMode.BAT_SELF_REGULATION
-        # manual_disable and fallback
         else:
-            if evu_power_valid:
-                log.debug("Aktive Speichersteuerung: Manueller Modus - EVU-Einspeisung vorhanden oder "
-                          "Ladung in Höhe des PV-Ertrags konfiguriert.")
-            if bat_power_valid:
-                log.debug("Aktive Speichersteuerung: Manueller Modus - Speicher entlädt oder "
-                          "Ladung in Höhe des PV-Ertrags konfiguriert.")
+            log.debug("Aktive Speichersteuerung: Manueller Modus - Steuerung Aus.")
             return BatChargeMode.BAT_SELF_REGULATION
 
     def get_charge_mode_electricity_tariff(self):
