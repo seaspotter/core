@@ -41,7 +41,7 @@ from control.ev.charge_template import EcoCharging, get_charge_template_default
 from control.ev import ev
 from control.ev.ev_template import EvTemplateData
 from control.general import Prices, PvCharging
-from control.optional_data import Ocpp
+from control.optional_data import OcppConfig
 from modules.common.abstract_vehicle import GeneralVehicleConfig
 from modules.common.component_type import ComponentType
 from modules.devices.sungrow.sungrow.version import Version
@@ -57,12 +57,25 @@ NO_MODULE = {"type": None, "configuration": {}}
 
 class UpdateConfig:
 
-    DATASTORE_VERSION = 107
+    DATASTORE_VERSION = 109
 
     valid_topic = [
         "^openWB/bat/config/bat_control_permitted$",
-        "^openWB/bat/config/configured$",
+        "^openWB/bat/config/bat_control_activated$",
         "^openWB/bat/config/power_limit_mode$",
+        "^openWB/bat/config/power_limit_condition$",
+        "^openWB/bat/config/bat_control_min_soc$",
+        "^openWB/bat/config/bat_control_max_soc$",
+        "^openWB/bat/config/manual_mode$",
+        "^openWB/bat/config/price_limit_activated$",
+        "^openWB/bat/config/price_limit$",
+        "^openWB/bat/config/price_charge_activated$",
+        "^openWB/bat/config/charge_limit$",
+        "^openWB/bat/[0-9]+/get/max_charge_power$",
+        "^openWB/bat/[0-9]+/get/max_discharge_power$",
+        "^openWB/bat/[0-9]+/get/state_str$",
+
+        "^openWB/bat/config/configured$",
         "^openWB/bat/set/charging_power_left$",
         "^openWB/bat/set/regulate_up$",
         "^openWB/bat/get/fault_state$",
@@ -325,7 +338,6 @@ class UpdateConfig:
         "^openWB/optional/int_display/rotation$",
         "^openWB/optional/int_display/theme$",
         "^openWB/optional/int_display/only_local_charge_points",
-        "^openWB/optional/led/active$",
         "^openWB/optional/monitoring/config$",
         "^openWB/optional/rfid/active$",
         "^openWB/optional/ocpp/config$",
@@ -511,8 +523,17 @@ class UpdateConfig:
     ]
     default_topic = (
         ("openWB/bat/config/bat_control_permitted", False),
+        ("openWB/bat/config/bat_control_activated", False),
+        ("openWB/bat/config/power_limit_mode", "mode_no_discharge"),
+        ("openWB/bat/config/power_limit_condition", "vehicle_charging"),
+        ("openWB/bat/config/bat_control_min_soc", 5),
+        ("openWB/bat/config/bat_control_max_soc", 90),
+        ("openWB/bat/config/manual_mode", "manual_disable"),
+        ("openWB/bat/config/price_limit_activated", False),
+        ("openWB/bat/config/price_limit$", 0.3),
+        ("openWB/bat/config/price_charge_activated", False),
+        ("openWB/bat/config/charge_limit$", 0.3),
         ("openWB/bat/config/configured", False),
-        ("openWB/bat/config/power_limit_mode", "no_limit"),
         ("openWB/bat/get/fault_state", 0),
         ("openWB/bat/get/fault_str", NO_ERROR),
         ("openWB/bat/get/power_limit_controllable", False),
@@ -584,9 +605,8 @@ class UpdateConfig:
         ("openWB/optional/int_display/rotation", 0),
         ("openWB/optional/int_display/theme", dataclass_utils.asdict(CardsDisplayTheme())),
         ("openWB/optional/int_display/only_local_charge_points", False),
-        ("openWB/optional/led/active", False),
         ("openWB/optional/monitoring/config", NO_MODULE),
-        ("openWB/optional/ocpp/config", dataclass_utils.asdict(Ocpp())),
+        ("openWB/optional/ocpp/config", dataclass_utils.asdict(OcppConfig())),
         ("openWB/optional/rfid/active", False),
         ("openWB/system/backup_password", None),
         ("openWB/system/backup_cloud/config", NO_MODULE),
@@ -2701,3 +2721,28 @@ class UpdateConfig:
                         return {topic: provider}
         self._loop_all_received_topics(upgrade)
         self._append_datastore_version(107)
+
+    def upgrade_datastore_108(self) -> None:
+        def upgrade(topic: str, payload) -> None:
+            if re.search("openWB/chargepoint/[0-9]+/set/log$", topic) is not None:
+                log_data = decode_payload(payload)
+                if log_data.get("time_charged") is not None:
+                    if isinstance(log_data["time_charged"], str):
+                        log_data["time_charged"] = 0
+                        return {topic: log_data}
+        self._loop_all_received_topics(upgrade)
+        self._append_datastore_version(108)
+
+    def upgrade_datastore_109(self) -> None:
+        def upgrade(topic: str, payload) -> None:
+            if re.search("openWB/bat/[0-9]+/get/power", topic) is not None:
+                index = get_index(topic)
+                # add new topics for battery control:
+                # openWB/bat/[0-9]+/get/max_charge_power => 0
+                # openWB/bat/[0-9]+/get/max_discharge_power => 0
+                if f"openWB/bat/{index}/get/max_charge_power" not in self.all_received_topics:
+                    self.__update_topic(f"openWB/bat/{index}/get/max_charge_power", 0)
+                if f"openWB/bat/{index}/get/max_discharge_power" not in self.all_received_topics:
+                    self.__update_topic(f"openWB/bat/{index}/get/max_discharge_power", 0)
+        self._loop_all_received_topics(upgrade)
+        self._append_datastore_version(109)

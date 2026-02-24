@@ -480,7 +480,7 @@ class SubData:
             var["cp"+index].chargepoint.chargepoint_module = mod.ChargepointModule(config)
             self.set_internal_chargepoint_configured()
         if (payload["type"] == "internal_openwb" and
-                payload["type"] != var["cp"+index].chargepoint.chargepoint_module.config.type):
+                payload["configuration"]["mode"] != var["cp"+index].chargepoint.data.config.configuration.get("mode")):
             log.debug("Neustart des Handlers für den internen Ladepunkt.")
             self.event_stop_internal_chargepoint.set()
             self.event_start_internal_chargepoint.set()
@@ -700,6 +700,8 @@ class SubData:
                     self.set_json_payload_class(var.data.led, msg)
                 elif re.search("/optional/rfid/", msg.topic) is not None:
                     self.set_json_payload_class(var.data.rfid, msg)
+                elif re.search("/optional/ocpp/config", msg.topic) is not None:
+                    self.set_json_payload_class(var.data.ocpp.config, msg)
                 elif re.search("/optional/ocpp/", msg.topic) is not None:
                     self.set_json_payload_class(var.data.ocpp, msg)
                 elif re.search("/optional/int_display/", msg.topic) is not None:
