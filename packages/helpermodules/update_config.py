@@ -2752,7 +2752,7 @@ class UpdateConfig:
             Migrate old single 'sungrow' devices into new modules:
              - 'sungrow_sg' for SG family (no version field)
              - 'sungrow_sh' for SH family (keeps numeric version 0 or 1)
-    
+
             Old version mapping:
              * 0 -> sungrow_sh, version 0
              * 1 -> sungrow_sg (remove version)
@@ -2776,10 +2776,10 @@ class UpdateConfig:
                                     old_version = int(old_raw)
                             except Exception:
                                 old_version = None
-    
+
                         new_type = "sungrow_sg"
                         new_version = None
-    
+
                         if old_version == 0:
                             new_type = "sungrow_sh"
                             new_version = 0
@@ -2792,16 +2792,16 @@ class UpdateConfig:
                         else:
                             new_type = "sungrow_sg"
                             new_version = None
-    
+
                         changed = False
-    
+
                         if device.get("type") != new_type:
                             device["type"] = new_type
                             changed = True
-    
+
                         if "configuration" not in device or device["configuration"] is None:
                             device["configuration"] = {}
-    
+
                         if new_version is None:
                             # sungrow_sg: remove version key if present
                             if "version" in device["configuration"]:
@@ -2812,7 +2812,7 @@ class UpdateConfig:
                             if device["configuration"].get("version") != new_version:
                                 device["configuration"]["version"] = new_version
                                 changed = True
-    
+
                         if changed:
                             device_name = device.get("name")
                             device_id = device.get("id")
@@ -2822,7 +2822,7 @@ class UpdateConfig:
                                 + (f", version={new_version}" if new_version is not None else ", no version")
                             )
                             Pub().pub(topic, device)
-    
+
                             if new_version is not None:
                                 try:
                                     version_name = Version(new_version).name
@@ -2842,6 +2842,6 @@ class UpdateConfig:
                                      f"'{device_name}' auf Typ '{new_type}'."),
                                     MessageType.INFO,
                                 )
-    
+
             self._loop_all_received_topics(upgrade)
             self._append_datastore_version(108)
