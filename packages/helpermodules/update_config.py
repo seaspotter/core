@@ -2734,15 +2734,17 @@ class UpdateConfig:
         self._append_datastore_version(108)
 
     def upgrade_datastore_109(self) -> None:
-        def upgrade(topic: str, payload) -> None:
-            if re.search("openWB/bat/[0-9]+/get/power", topic) is not None:
+        def upgrade(topic: str, payload) -> Optional[dict]:
+            if re.search("^openWB/bat/[0-9]+/get/power$", topic) is not None:
                 index = get_index(topic)
+                new_topics = {}
                 # add new topics for battery control:
                 # openWB/bat/[0-9]+/get/max_charge_power => 0
                 # openWB/bat/[0-9]+/get/max_discharge_power => 0
                 if f"openWB/bat/{index}/get/max_charge_power" not in self.all_received_topics:
-                    self.__update_topic(f"openWB/bat/{index}/get/max_charge_power", 0)
+                    new_topics[f"openWB/bat/{index}/get/max_charge_power"] = 0
                 if f"openWB/bat/{index}/get/max_discharge_power" not in self.all_received_topics:
-                    self.__update_topic(f"openWB/bat/{index}/get/max_discharge_power", 0)
+                    new_topics[f"openWB/bat/{index}/get/max_discharge_power"] = 0
+                return new_topics if new_topics else None
         self._loop_all_received_topics(upgrade)
         self._append_datastore_version(109)
