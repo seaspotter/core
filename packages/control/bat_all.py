@@ -479,12 +479,16 @@ class BatAll:
         elif self.data.config.manual_mode == ManualMode.MANUAL_LIMIT.value:
             if (self.data.config.power_limit_mode == BatPowerLimitMode.MODE_CHARGE_PV_PRODUCTION.value or
                     (evu_power_valid and bat_power_valid)):
-                # Limit nicht anwenden wenn viel Eingespeist ird oder der Speicher lädt
+                # Limit anwenden wenn kein Überschuss vorhanden oder der Speicher nicht lädt
                 log.debug("Aktive Speichersteuerung: Manueller Modus - Regellimit anwenden.")
                 return BatChargeMode.BAT_USE_LIMIT
             else:
                 log.debug("Aktive Speichersteuerung: Manueller Modus - Kein Limit da Speicher lädt")
                 return BatChargeMode.BAT_SELF_REGULATION
+        elif self.data.config.manual_mode == ManualMode.MANUAL_DISCHARGE.value:
+            log.debug("Aktive Speichersteuerung: Manueller Modus - "
+                      "Eigenregelung da aktive Speicherentladung nicht erlaubt ist.")
+            return BatChargeMode.BAT_SELF_REGULATION
         else:
             log.debug("Aktive Speichersteuerung: Manueller Modus - Steuerung Aus.")
             return BatChargeMode.BAT_SELF_REGULATION
@@ -509,7 +513,8 @@ class BatAll:
             return BatChargeMode.BAT_SELF_REGULATION
 
     def get_charge_mode_scheduled(self):
-        pass
+        log.debug(("Aktive Speichersteuerung: Eigenregelung - Zielladen noch nicht implementiert."))
+        return BatChargeMode.BAT_SELF_REGULATION
 
     def get_power_limit(self):
         # Falls kein steuerbarer Speicher installiert ist, der Disclaimer nicht akzeptiert wurde
@@ -522,7 +527,7 @@ class BatAll:
                 log.debug("Speicher-Leistung nicht begrenzen, da keine regelbaren Speicher vorhanden sind.")
             elif self.data.config.bat_control_permitted is False:
                 log.debug("Speicher-Leistung nicht begrenzen, da der aktiven Speichersteuerung nicht zugestimmt wurde.")
-            elif self.data.get.power_limit_controllable is False:
+            elif self.data.config.bat_control_activated is False:
                 log.debug("Speicher-Leistung nicht begrenzen, da aktive Speichersteuerung deaktiviert wurde.")
         else:
             charge_mode = BatChargeMode.BAT_SELF_REGULATION
@@ -537,7 +542,7 @@ class BatAll:
                 charge_mode = self.get_charge_mode_electricity_tariff()
             elif self.data.config.power_limit_condition == BatPowerLimitCondition.SCHEDULED.value:
                 log.debug("Aktive Speichersteuerung: Vorhersagebasiertes Zielladen.")
-                pass
+                charge_mode = self.get_charge_mode_scheduled()
 
         # calculate power_limit
         controllable_bat_components = get_controllable_bat_components()
@@ -562,8 +567,8 @@ class BatAll:
                 max_charge_power_total += bat_component_data.get.max_charge_power
             self.data.set.power_limit = max_charge_power_total
         elif charge_mode == BatChargeMode.BAT_FORCE_DISCHARGE:
-            # das ist in Deutschland (noch) nicht erlaubt
-            pass
+            self.data.set.power_limit = None
+            log.debug("Speicher-Leistung nicht begrenzen")
 
 
 def get_controllable_bat_components() -> List:
