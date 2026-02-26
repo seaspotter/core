@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-from typing import TypedDict, Any
+import logging
+from typing import Any, Optional, TypedDict
 
 from modules.common import modbus
 from modules.common.abstract_device import AbstractBat
@@ -9,6 +10,8 @@ from modules.common.fault_state import ComponentInfo, FaultState
 from modules.common.modbus import ModbusDataType
 from modules.common.store import get_bat_value_store
 from modules.devices.sma.sma_sunny_island.config import SmaSunnyIslandBatSetup
+
+log = logging.getLogger(__name__)
 
 
 class KwargsDict(TypedDict):
@@ -24,8 +27,9 @@ class SunnyIslandBat(AbstractBat):
         self.__tcp_client: modbus.ModbusTcpClient_ = self.kwargs['client']
         self.store = get_bat_value_store(self.component_config.id)
         self.fault_state = FaultState(ComponentInfo.from_component_config(self.component_config))
+        self.last_mode = 'Undefined'
 
-    def read(self) -> BatState:
+    def update(self) -> None:
         unit = self.component_config.configuration.modbus_id
 
         with self.__tcp_client:
@@ -40,9 +44,28 @@ class SunnyIslandBat(AbstractBat):
             imported=imported,
             exported=exported
         )
+        self.store.set(bat_state)
 
-    def update(self) -> None:
-        self.store.set(self.read())
+    def set_power_limit(self, power_limit: Optional[int]) -> None:
+        unit = self.component_config.configuration.modbus_id
+        log.debug(f'last_mode: {self.last_mode}')
+
+        if power_limit is None:
+            log.debug("Keine aktive Batteriesteuerung aktiv, Selbstregelung durch Wechselrichter")
+            if self.last_mode is not None:
+                self.__tcp_client.write_register(40151, 803, data_type=ModbusDataType.UINT_32, unit=unit)
+                self.__tcp_client.write_register(40149, 0, data_type=ModbusDataType.UINT_32, unit=unit)
+                self.last_mode = None
+        else:
+            log.debug("Aktive Batteriesteuerung aktiv")
+            if self.last_mode != 'limited':
+                self.__tcp_client.write_register(40151, 802, data_type=ModbusDataType.UINT_32, unit=unit)
+                self.last_mode = 'limited'
+            power_value = int(power_limit)
+            self.__tcp_client.write_register(40149, power_value, data_type=ModbusDataType.UINT_32, unit=unit)
+
+    def power_limit_controllable(self) -> bool:
+        return True
 
 
 component_descriptor = ComponentDescriptor(configuration_factory=SmaSunnyIslandBatSetup)
