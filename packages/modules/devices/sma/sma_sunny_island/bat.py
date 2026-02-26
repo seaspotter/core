@@ -61,7 +61,7 @@ class SunnyIslandBat(AbstractBat):
             if self.last_mode != 'limited':
                 self.__tcp_client.write_register(40151, 802, data_type=ModbusDataType.UINT_32, unit=unit)
                 self.last_mode = 'limited'
-            power_value = int(power_limit)
+            power_value = int(power_limit) * -1
             self.__tcp_client.write_register(40149, power_value, data_type=ModbusDataType.UINT_32, unit=unit)
 
     def power_limit_controllable(self) -> bool:
