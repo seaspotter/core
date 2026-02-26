@@ -31,25 +31,11 @@ class SmaSunnyBoyBatConfiguration:
 
 class SmaSunnyBoyBatSetup(ComponentSetup[SmaSunnyBoyBatConfiguration]):
     def __init__(self,
-                 name: str = "Sma Sunny Boy/Tripower Speicher",
+                 name: str = "Sma Sunny Boy/Tripower/Smart Energy Speicher",
                  type: str = "bat",
                  id: int = 0,
                  configuration: SmaSunnyBoyBatConfiguration = None) -> None:
         super().__init__(name, type, id, configuration or SmaSunnyBoyBatConfiguration())
-
-
-class SmaSunnyBoySmartEnergyBatConfiguration:
-    def __init__(self, modbus_id: int = 3):
-        self.modbus_id = modbus_id
-
-
-class SmaSunnyBoySmartEnergyBatSetup(ComponentSetup[SmaSunnyBoySmartEnergyBatConfiguration]):
-    def __init__(self,
-                 name: str = "Sma Sunny Boy Smart Energy Speicher",
-                 type: str = "bat_smart_energy",
-                 id: int = 0,
-                 configuration: SmaSunnyBoySmartEnergyBatConfiguration = None) -> None:
-        super().__init__(name, type, id, configuration or SmaSunnyBoySmartEnergyBatConfiguration())
 
 
 class SmaTesvoltBatConfiguration:
