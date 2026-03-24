@@ -38,11 +38,15 @@ class VictronBat(AbstractBat):
         with self.__tcp_client:
             power = self.__tcp_client.read_holding_registers(842, ModbusDataType.INT_16, unit=modbus_id)
             soc = self.__tcp_client.read_holding_registers(843, ModbusDataType.UINT_16, unit=modbus_id)
+            bat_current = self.__tcp_client.read_holding_registers(841, ModbusDataType.UINT_16, unit=modbus_id) / 10
+
+        currents = [bat_current / 3] * 3
 
         imported, exported = self.sim_counter.sim_count(power)
         bat_state = BatState(
             power=power,
             soc=soc,
+            currents=currents,
             imported=imported,
             exported=exported
         )
