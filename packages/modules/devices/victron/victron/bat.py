@@ -84,8 +84,8 @@ class VictronBat(AbstractBat):
             if self.last_mode != 'discharge':
                 # ESS Mode 3 für externe Steuerung
                 self.__tcp_client.write_register(2902, 3, data_type=ModbusDataType.UINT_16, unit=modbus_id)
-                self.__tcp_client.write_register(38, 0, data_type=ModbusDataType.UINT_16, unit=vebus_id)
-                self.__tcp_client.write_register(39, 1, data_type=ModbusDataType.UINT_16, unit=vebus_id)
+                self.__tcp_client.write_register(38, 1, data_type=ModbusDataType.UINT_16, unit=vebus_id)
+                self.__tcp_client.write_register(39, 0, data_type=ModbusDataType.UINT_16, unit=vebus_id)
                 self.last_mode = 'discharge'
             
             # Phasenleistung berechnen und auf je +/- 5000W begrenzen
@@ -112,8 +112,8 @@ class VictronBat(AbstractBat):
             if self.last_mode != 'charge':
                 # ESS Mode 3 für externe Steuerung
                 self.__tcp_client.write_register(2902, 3, data_type=ModbusDataType.UINT_16, unit=modbus_id)
-                self.__tcp_client.write_register(38, 1, data_type=ModbusDataType.UINT_16, unit=vebus_id)
-                self.__tcp_client.write_register(39, 0, data_type=ModbusDataType.UINT_16, unit=vebus_id)
+                self.__tcp_client.write_register(38, 0, data_type=ModbusDataType.UINT_16, unit=vebus_id)
+                self.__tcp_client.write_register(39, 1, data_type=ModbusDataType.UINT_16, unit=vebus_id)
                 self.last_mode = 'charge'
             
             # Phasenleistung berechnen und auf je +/- 5000W begrenzen
