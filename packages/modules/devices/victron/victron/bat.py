@@ -71,6 +71,7 @@ class VictronBat(AbstractBat):
                 self.__tcp_client.write_register(38, 0, data_type=ModbusDataType.UINT_16, unit=vebus_id)
                 self.__tcp_client.write_register(39, 0, data_type=ModbusDataType.UINT_16, unit=vebus_id)
                 self.last_mode = None
+
         elif power_limit == 0:
             log.debug("Aktive Batteriesteuerung. Batterie wird auf Stop gesetzt und nicht entladen")
             if self.last_mode != 'stop':
@@ -79,17 +80,18 @@ class VictronBat(AbstractBat):
                 self.__tcp_client.write_register(38, 1, data_type=ModbusDataType.UINT_16, unit=vebus_id)
                 self.__tcp_client.write_register(39, 1, data_type=ModbusDataType.UINT_16, unit=vebus_id)
                 self.last_mode = 'stop'
+
         elif power_limit < 0:
-            if self.last_mode != 'discharge':
+            # if self.last_mode != 'discharge':
                 # ESS Mode 3 für externe Steuerung
-                self.__tcp_client.write_register(2902, 3, data_type=ModbusDataType.UINT_16, unit=modbus_id)
-                self.__tcp_client.write_register(38, 0, data_type=ModbusDataType.UINT_16, unit=vebus_id)
-                self.__tcp_client.write_register(39, 0, data_type=ModbusDataType.UINT_16, unit=vebus_id)
-                self.last_mode = 'discharge'
+            self.__tcp_client.write_register(2902, 3, data_type=ModbusDataType.UINT_16, unit=modbus_id)
+            self.__tcp_client.write_register(38, 0, data_type=ModbusDataType.UINT_16, unit=vebus_id)
+            self.__tcp_client.write_register(39, 0, data_type=ModbusDataType.UINT_16, unit=vebus_id)
+                # self.last_mode = 'discharge'
             
             # Phasenleistung berechnen und auf je +/- 5000W begrenzen
             power_per_phase = power_limit / phases
-            power_value = int(max(power_per_phase, -5000))
+            power_value = int(power_per_phase)
             
             log.debug(f"Aktive Batteriesteuerung - Entladung. Victron mit {phases} Phase(n). "
                       f"Total power_limit: {power_limit}W, per phase: {power_per_phase}W, "
@@ -104,16 +106,16 @@ class VictronBat(AbstractBat):
                                                  data_type=ModbusDataType.INT_16, unit=vebus_id)
                 
         elif power_limit > 0:
-            if self.last_mode != 'charge':
+            # if self.last_mode != 'charge':
                 # ESS Mode 3 für externe Steuerung
-                self.__tcp_client.write_register(2902, 3, data_type=ModbusDataType.UINT_16, unit=modbus_id)
-                self.__tcp_client.write_register(38, 0, data_type=ModbusDataType.UINT_16, unit=vebus_id)
-                self.__tcp_client.write_register(39, 0, data_type=ModbusDataType.UINT_16, unit=vebus_id)
-                self.last_mode = 'charge'
+            self.__tcp_client.write_register(2902, 3, data_type=ModbusDataType.UINT_16, unit=modbus_id)
+            self.__tcp_client.write_register(38, 0, data_type=ModbusDataType.UINT_16, unit=vebus_id)
+            self.__tcp_client.write_register(39, 0, data_type=ModbusDataType.UINT_16, unit=vebus_id)
+                # self.last_mode = 'charge'
             
             # Phasenleistung berechnen und auf je +/- 5000W begrenzen
             power_per_phase = power_limit / phases
-            power_value = int(min(power_per_phase, 5000))
+            power_value = int(power_per_phase)
             
             log.debug(f"Aktive Batteriesteuerung - Ladung. Victron mit {phases} Phase(n). "
                       f"Total power_limit: {power_limit}W, per phase: {power_per_phase}W, "
