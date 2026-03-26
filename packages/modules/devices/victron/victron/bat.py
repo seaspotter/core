@@ -59,6 +59,9 @@ class VictronBat(AbstractBat):
             return
 
         phases = self.__tcp_client.read_holding_registers(28, ModbusDataType.UINT_16, unit=vebus_id)
+        if phases not in (1, 3):
+            log.warning(f"Ungültige Phasenzahl: {phases}. Erwartet: 1 oder 3. Batteriesteuerung wird übersprungen.")
+            return
         
         if power_limit is None:
             if self.last_mode is not None:
@@ -68,14 +71,12 @@ class VictronBat(AbstractBat):
                 log.debug("Keine Batteriesteuerung, Selbstregelung durch Wechselrichter")
 
         else:
-            # if self.last_mode != 'limited':
             # ESS Mode 3 für externe Steuerung
             self.__tcp_client.write_register(2902, 3, data_type=ModbusDataType.UINT_16, unit=modbus_id)
             self.last_mode = 'limited'
            
-            # Phasenleistung berechnen und auf je +/- 5000W begrenzen
-            power_per_phase = power_limit / phases
-            power_value = int(power_per_phase)
+            # Phasenleistung berechnen 
+            power_value = int(power_limit / phases)
 
             self.__tcp_client.write_register(37, power_value,
                                              data_type=ModbusDataType.INT_16, unit=vebus_id)
@@ -86,9 +87,8 @@ class VictronBat(AbstractBat):
                                                  data_type=ModbusDataType.INT_16, unit=vebus_id)
 
             log.debug(f"Aktive Batteriesteuerung. Victron mit {phases} Phase(n). "
-                      f"power_limit: {power_limit}W, pro Phase: {power_per_phase}W, "
-                      f"Gesetzt auf: {power_value}W pro Phase")
- 
+                      f"power_limit: {power_limit} W, pro Phase: {power_value} W")
+
         phase_l1 = self.__tcp_client.read_holding_registers(37, ModbusDataType.INT_16, unit=vebus_id)
         log.debug(f"Wert rückgelesen Register 37: {phase_l1}")
         phase_l2 = self.__tcp_client.read_holding_registers(40, ModbusDataType.INT_16, unit=vebus_id)
