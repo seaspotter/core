@@ -96,4 +96,3 @@ def fetch_soc(config: RenaultConfiguration) -> CarState:
     return CarState(soc=float(batt['data']['attributes']['batteryLevel']),
                     range=float(batt['data']['attributes']['batteryAutonomy']),
                     odometer=float(cockpit['data']['attributes']['totalMileage']))
-
