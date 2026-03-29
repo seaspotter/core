@@ -93,7 +93,19 @@ def fetch_soc(config: RenaultConfiguration) -> CarState:
     responsetext = response.read()
     cockpit = json.loads(responsetext)
 
-
-    return CarState(soc=float(batt['data']['attributes']['batteryLevel']),
-                    range=float(batt['data']['attributes']['batteryAutonomy']),
-                    odometer=float(cockpit['data']['attributes']['totalMileage']))
+    # Validate response structure
+    if 'data' not in cockpit:
+        log.warning(f"Cockpit endpoint returned unexpected structure: {cockpit}")
+        raise Exception(f"Vehicle data unavailable. Response: {cockpit}")
+    
+    if 'data' not in batt:
+        log.warning(f"Battery endpoint returned unexpected structure: {batt}")
+        raise Exception(f"Battery data unavailable. Response: {batt}")
+    
+    try:
+        return CarState(soc=float(batt['data']['attributes']['batteryLevel']),
+                        range=float(batt['data']['attributes']['batteryAutonomy']),
+                        odometer=float(cockpit['data']['attributes']['totalMileage']))
+    except (KeyError, TypeError, ValueError) as e:
+        log.error(f"Failed to parse vehicle data: {e}. Battery: {batt}, Cockpit: {cockpit}")
+        raise Exception(f"Unable to parse vehicle data: {e}")
