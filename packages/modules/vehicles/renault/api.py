@@ -81,11 +81,11 @@ def fetch_soc(config: RenaultConfiguration) -> CarState:
     responsetext = response.read()
     batt = json.loads(responsetext)
 
-    # Step 9 - cockpit data
+    # Step 9 - cockpit data for odometer/totalMileage
     data = urllib.parse.urlencode(country_data)
     data = data.encode('Big5')
     reg = urllib.request.Request(KAMEREON_ROOTURL + '/commerce/v1/accounts/' +
-                                 kamereonaccountid + '/kamereon/kca/car-adapter/v2/cars/'
+                                 kamereonaccountid + '/kamereon/kca/car-adapter/v1/cars/'
                                  + vin + '/cockpit?' + data.decode("utf-8"))
     reg.add_header('x-gigya-id_token', gigya_jwttoken)
     reg.add_header('apikey', KAMEREON_API_KEY)
@@ -93,19 +93,7 @@ def fetch_soc(config: RenaultConfiguration) -> CarState:
     responsetext = response.read()
     cockpit = json.loads(responsetext)
 
-    # Validate response structure
-    if 'data' not in cockpit:
-        log.warning(f"Cockpit endpoint returned unexpected structure: {cockpit}")
-        raise Exception(f"Vehicle data unavailable. Response: {cockpit}")
-    
-    if 'data' not in batt:
-        log.warning(f"Battery endpoint returned unexpected structure: {batt}")
-        raise Exception(f"Battery data unavailable. Response: {batt}")
-    
-    try:
-        return CarState(soc=float(batt['data']['attributes']['batteryLevel']),
-                        range=float(batt['data']['attributes']['batteryAutonomy']),
-                        odometer=float(cockpit['data']['attributes']['totalMileage']))
-    except (KeyError, TypeError, ValueError) as e:
-        log.error(f"Failed to parse vehicle data: {e}. Battery: {batt}, Cockpit: {cockpit}")
-        raise Exception(f"Unable to parse vehicle data: {e}")
+    return CarState(soc=float(batt['data']['attributes']['batteryLevel']),
+                    range=float(batt['data']['attributes']['batteryAutonomy']),
+                    odometer=float(cockpit['data']['attributes']['totalMileage']))
+
