@@ -47,11 +47,15 @@ class KostalPlenticoreBat(AbstractBat):
         if power < 0:
             power = self.client.read_holding_registers(
                 106, ModbusDataType.FLOAT_32, unit=self.modbus_id, wordorder=self.endianess) * -1
+        bat_current = self.client.read_holding_registers(200, ModbusDataType.FLOAT_32,
+                                                         unit=self.modbus_id, wordorder=self.endianess) * -1
+        currents = [bat_current / 3] * 3
 
         self.peak_filter.check_values(power)
         imported, exported = self.sim_counter.sim_count(power)
         bat_state = BatState(
             power=power,
+            currents=currents,
             soc=soc,
             imported=imported,
             exported=exported
