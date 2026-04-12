@@ -34,14 +34,19 @@ class SolisInverter:
 
         if self.version == SolisVersion.inverter:
             power = self.client.read_input_registers(3004, ModbusDataType.UINT_32, unit=unit) * -1
-            exported = self.client.read_input_registers(3008, ModbusDataType.UINT_32, unit=unit) * 1000
-        elif self.version == SolisVersion.hybrid:
+            currents = self.__tcp_client.read_input_registers(3037, [ModbusDataType.UINT_16]*3, unit=unit)
+        elif self.version in (SolisVersion.hybrid, SolisVersion.hybrid_s):
             power = self.client.read_input_registers(33057, ModbusDataType.UINT_32, unit=unit) * -1
-            exported = self.client.read_input_registers(33029, ModbusDataType.UINT_32, unit=unit) * 1000
+            currents = self.__tcp_client.read_input_registers(33076, [ModbusDataType.UINT_16]*3, unit=unit)
 
-        _, exported = self.peak_filter.check_values(power, None, exported)
+        currents = [value * -0.1 for value in currents]
+
+        self.peak_filter.check_values(power)
+        imported, exported = self.sim_counter.sim_count(power)
         inverter_state = InverterState(
             power=power,
+            currents=currents,
+            imported=imported,
             exported=exported
         )
         self.store.set(inverter_state)
