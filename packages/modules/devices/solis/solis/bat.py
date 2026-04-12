@@ -30,6 +30,7 @@ class SolisBat(AbstractBat):
     def initialize(self) -> None:
         self.client: ModbusTcpClient_ = self.kwargs['client']
         self.version: SolisVersion = self.kwargs['version']
+        self.sim_counter = SimCounter(self.component_config.id)
         self.store = get_bat_value_store(self.component_config.id)
         self.fault_state = FaultState(ComponentInfo.from_component_config(self.component_config))
         self.peak_filter = PeakFilter(ComponentType.BAT, self.component_config.id, self.fault_state)
@@ -39,7 +40,7 @@ class SolisBat(AbstractBat):
 
         power = self.client.read_input_registers(33149, ModbusDataType.INT_32, unit=unit)
         soc = self.client.read_input_registers(33139, ModbusDataType.UINT_16, unit=unit)
-        bat_current = self.__tcp_client.read_input_registers(33134, ModbusDataType.INT_16, unit=unit) * -0.1
+        bat_current = self.client.read_input_registers(33134, ModbusDataType.INT_16, unit=unit) * -0.1
 
         currents = [bat_current / 3] * 3
 
@@ -58,26 +59,26 @@ class SolisBat(AbstractBat):
         unit = self.component_config.configuration.modbus_id
 
         if power_limit is None:
-            self.__tcp_client.write_register(43135, 0, data_type=ModbusDataType.UINT_16, unit=unit)
+            self.client.write_register(43135, 0, data_type=ModbusDataType.UINT_16, unit=unit)
             log.debug("Keine Batteriesteuerung, Selbstregelung durch Wechselrichter")
         elif power_limit == 0:
-            self.__tcp_client.write_register(43135, 1, data_type=ModbusDataType.UINT_16, unit=unit)
-            self.__tcp_client.write_register(43136, 0, data_type=ModbusDataType.UINT_16, unit=unit)
+            self.client.write_register(43135, 1, data_type=ModbusDataType.UINT_16, unit=unit)
+            self.client.write_register(43136, 0, data_type=ModbusDataType.UINT_16, unit=unit)
             log.debug("Aktive Batteriesteuerung. Batterie wird auf Stop gesetzt und nicht geladen/entladen")
         elif power_limit < 0:
-            self.__tcp_client.write_register(43135, 2, data_type=ModbusDataType.UINT_16, unit=unit)
+            self.client.write_register(43135, 2, data_type=ModbusDataType.UINT_16, unit=unit)
             power_value = int(power_limit / 10)
-            self.__tcp_client.write_register(43129, power_value, data_type=ModbusDataType.UINT_16, unit=unit)
+            self.client.write_register(43129, power_value, data_type=ModbusDataType.UINT_16, unit=unit)
             log.debug(f"Aktive Batteriesteuerung. Batterie wird mit {power_value} W entladen für den Hausverbrauch")
         elif power_limit > 0:
-            self.__tcp_client.write_register(43135, 1, data_type=ModbusDataType.UINT_16, unit=unit)
+            self.client.write_register(43135, 1, data_type=ModbusDataType.UINT_16, unit=unit)
             power_value = int(power_limit / 10)
-            self.__tcp_client.write_register(43136, power_value, data_type=ModbusDataType.UINT_16, unit=unit)
+            self.client.write_register(43136, power_value, data_type=ModbusDataType.UINT_16, unit=unit)
             log.debug(f"Aktive Batteriesteuerung. Batterie wird mit {power_value} W geladen")
 
     def power_limit_controllable(self) -> bool:
         # Nur die S-Serie sollte die Speichersteuerung können
-        return self.solis_version == SolisVersion.hybrid_s
+        return self.version == SolisVersion.hybrid_s
 
 
 component_descriptor = ComponentDescriptor(configuration_factory=SolisBatSetup)
