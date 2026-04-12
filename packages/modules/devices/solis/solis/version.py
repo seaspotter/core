@@ -4,4 +4,4 @@ from enum import Enum
 class SolisVersion(Enum):
     inverter = "inverter"
     hybrid = "hybrid"
-    hybrid-s = "hybrid-s"
+    hybrid_s = "hybrid_s"
