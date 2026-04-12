@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import logging
-from typing import TypedDict, Any
+from typing import TypedDict, Any, Optional
 
 from modules.common.abstract_device import AbstractBat
 from modules.common.component_state import BatState
@@ -10,6 +10,7 @@ from modules.common.modbus import ModbusDataType, ModbusTcpClient_
 from modules.common.simcount import SimCounter
 from modules.common.store import get_bat_value_store
 from modules.devices.solis.solis.config import SolisBatSetup
+from modules.devices.solis.solis.version import SolisVersion
 from modules.common.utils.peak_filter import PeakFilter
 from modules.common.component_type import ComponentType
 
@@ -18,6 +19,7 @@ log = logging.getLogger(__name__)
 
 class KwargsDict(TypedDict):
     client: ModbusTcpClient_
+    version: SolisVersion
 
 
 class SolisBat(AbstractBat):
@@ -27,6 +29,7 @@ class SolisBat(AbstractBat):
 
     def initialize(self) -> None:
         self.client: ModbusTcpClient_ = self.kwargs['client']
+        self.version: SolisVersion = self.kwargs['version']
         self.store = get_bat_value_store(self.component_config.id)
         self.fault_state = FaultState(ComponentInfo.from_component_config(self.component_config))
         self.peak_filter = PeakFilter(ComponentType.BAT, self.component_config.id, self.fault_state)
@@ -73,7 +76,8 @@ class SolisBat(AbstractBat):
             log.debug(f"Aktive Batteriesteuerung. Batterie wird mit {power_value} W geladen")
 
     def power_limit_controllable(self) -> bool:
-        return True
+        # Nur die S-Serie sollte die Speichersteuerung können
+        return self.solis_version == SolisVersion.hybrid_s
 
 
 component_descriptor = ComponentDescriptor(configuration_factory=SolisBatSetup)
