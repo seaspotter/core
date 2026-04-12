@@ -5,6 +5,7 @@ from modules.common.component_state import InverterState
 from modules.common.component_type import ComponentDescriptor
 from modules.common.fault_state import ComponentInfo, FaultState
 from modules.common.modbus import ModbusDataType, ModbusTcpClient_
+from modules.common.simcount import SimCounter
 from modules.common.store import get_inverter_value_store
 from modules.devices.solis.solis.config import SolisInverterSetup
 from modules.devices.solis.solis.version import SolisVersion
