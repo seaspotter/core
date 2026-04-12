@@ -35,18 +35,22 @@ class SolisInverter:
         unit = self.component_config.configuration.modbus_id
 
         if self.version == SolisVersion.inverter:
-            power = self.client.read_input_registers(3004, ModbusDataType.UINT_32, unit=unit) * -1
-            currents = self.client.read_input_registers(3037, [ModbusDataType.UINT_16]*3, unit=unit)
+            # Für Stringwechselrichter -1 bei Modbus Registers
+            power = self.client.read_input_registers(3004, ModbusDataType.INT_32, unit=unit) * -1
+            dc_power = self.client.read_input_registers(3006, ModbusDataType.UINT_32, unit=unit) * -1
+            currents = self.client.read_input_registers(3036, [ModbusDataType.UINT_16]*3, unit=unit)
         elif self.version in (SolisVersion.hybrid, SolisVersion.hybrid_s):
-            power = self.client.read_input_registers(33057, ModbusDataType.UINT_32, unit=unit) * -1
+            power = self.client.read_input_registers(33079, ModbusDataType.INT_32, unit=unit) * -1
+            dc_power = self.client.read_input_registers(33057, ModbusDataType.UINT_32, unit=unit) * -1
             currents = self.client.read_input_registers(33076, [ModbusDataType.UINT_16]*3, unit=unit)
 
         currents = [value * -0.1 for value in currents]
 
         self.peak_filter.check_values(power)
-        imported, exported = self.sim_counter.sim_count(power)
+        imported, exported = self.sim_counter.sim_count(power, dc_power)
         inverter_state = InverterState(
             power=power,
+            dc_power=dc_power,
             currents=currents,
             imported=imported,
             exported=exported
