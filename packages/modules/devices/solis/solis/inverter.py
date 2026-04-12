@@ -26,6 +26,7 @@ class SolisInverter:
     def initialize(self) -> None:
         self.client: ModbusTcpClient_ = self.kwargs['client']
         self.version: SolisVersion = self.kwargs['version']
+        self.sim_counter = SimCounter(self.component_config.id)
         self.store = get_inverter_value_store(self.component_config.id)
         self.fault_state = FaultState(ComponentInfo.from_component_config(self.component_config))
         self.peak_filter = PeakFilter(ComponentType.INVERTER, self.component_config.id, self.fault_state)
@@ -35,10 +36,10 @@ class SolisInverter:
 
         if self.version == SolisVersion.inverter:
             power = self.client.read_input_registers(3004, ModbusDataType.UINT_32, unit=unit) * -1
-            currents = self.__tcp_client.read_input_registers(3037, [ModbusDataType.UINT_16]*3, unit=unit)
+            currents = self.client.read_input_registers(3037, [ModbusDataType.UINT_16]*3, unit=unit)
         elif self.version in (SolisVersion.hybrid, SolisVersion.hybrid_s):
             power = self.client.read_input_registers(33057, ModbusDataType.UINT_32, unit=unit) * -1
-            currents = self.__tcp_client.read_input_registers(33076, [ModbusDataType.UINT_16]*3, unit=unit)
+            currents = self.client.read_input_registers(33076, [ModbusDataType.UINT_16]*3, unit=unit)
 
         currents = [value * -0.1 for value in currents]
 
