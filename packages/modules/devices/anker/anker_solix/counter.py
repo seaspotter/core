@@ -4,6 +4,7 @@ from modules.common.component_state import CounterState
 from modules.common.component_type import ComponentDescriptor
 from modules.common.fault_state import ComponentInfo, FaultState
 from modules.common.modbus import ModbusDataType, ModbusTcpClient_
+from modules.common.simcount import SimCounter
 from modules.common.store import get_counter_value_store
 from modules.devices.anker.anker_solix.config import AnkerCounterSetup
 from modules.common.utils.peak_filter import PeakFilter
@@ -21,23 +22,21 @@ class AnkerCounter:
 
     def initialize(self) -> None:
         self.client: ModbusTcpClient_ = self.kwargs['client']
-        self.version: AnkerCounterVersion = self.kwargs['version']
+        self.sim_counter = SimCounter(self.__device_id, self.component_config.id, prefix="bezug")
         self.store = get_counter_value_store(self.component_config.id)
         self.fault_state = FaultState(ComponentInfo.from_component_config(self.component_config))
-        self.version = self.kwargs['version']
-        self.client = self.kwargs['client']
         self.peak_filter = PeakFilter(ComponentType.COUNTER, self.component_config.id, self.fault_state)
 
     def update(self):
         unit = self.component_config.configuration.modbus_id
 
-        power = self.__tcp_client.read_input_registers(10644, ModbusDataType.INT_32,
+        power = self.client.read_input_registers(10644, ModbusDataType.INT_32,
                                                        wordorder=Endian.Little, unit=unit) * -1
-        powers = self.__tcp_client.read_input_registers(10638, [ModbusDataType.INT_32] * 3,
+        powers = self.client.read_input_registers(10638, [ModbusDataType.INT_32] * 3,
                                                         wordorder=Endian.Little, unit=unit)
-        voltages = self.__tcp_client.read_input_registers(10632, [ModbusDataType.UINT_16] * 3,
+        voltages = self.client.read_input_registers(10632, [ModbusDataType.UINT_16] * 3,
                                                           wordorder=Endian.Little, unit=unit) 
-        currents = self.__tcp_client.read_input_registers(10666, [ModbusDataType.INT_16] * 3,
+        currents = self.client.read_input_registers(10666, [ModbusDataType.INT_16] * 3,
                                                           wordorder=Endian.Little, unit=unit)
 
         voltages = [value / 10 for value in voltages]
