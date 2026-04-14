@@ -18,7 +18,7 @@ class KwargsDict(TypedDict):
     client: ModbusTcpClient_
 
 
-class AnkerCounter:
+class AnkerCounter(AbstractCounter):
     def __init__(self, component_config: AnkerCounterSetup, **kwargs: Any) -> None:
         self.component_config = component_config
         self.kwargs: KwargsDict = kwargs
