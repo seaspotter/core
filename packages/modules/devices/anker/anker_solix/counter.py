@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 from typing import Any, TypedDict
+
+from modules.common.abstract_device import AbstractCounter
 from modules.common.component_state import CounterState
 from modules.common.component_type import ComponentDescriptor
 from modules.common.fault_state import ComponentInfo, FaultState
