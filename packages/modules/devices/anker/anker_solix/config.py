@@ -38,9 +38,11 @@ class AnkerBatSetup(ComponentSetup[AnkerBatConfiguration]):
 
 
 class AnkerCounterConfiguration:
-    def __init__(self, energy_meter: bool = True, modbus_id: int = 1):
-        self.energy_meter = energy_meter
+    def __init__(self, modbus_id: int = 1
+                ip_address: Optional[str] = None, port: int = 502):
         self.modbus_id = modbus_id
+        self.ip_address = ip_address
+        self.port = port
 
 
 class AnkerCounterSetup(ComponentSetup[AnkerCounterConfiguration]):
@@ -53,8 +55,7 @@ class AnkerCounterSetup(ComponentSetup[AnkerCounterConfiguration]):
 
 
 class AnkerInverterConfiguration:
-    def __init__(self, mppt: bool = False, modbus_id: int = 1):
-        self.mppt = mppt
+    def __init__(self, modbus_id: int = 1):
         self.modbus_id = modbus_id
 
 
