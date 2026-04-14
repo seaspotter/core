@@ -7,7 +7,7 @@ from modules.common.abstract_device import AbstractBat
 from modules.common.component_state import BatState
 from modules.common.component_type import ComponentDescriptor
 from modules.common.fault_state import ComponentInfo, FaultState
-from modules.common.modbus import ModbusDataType, ModbusTcpClient_
+from modules.common.modbus import ModbusDataType, Endian, ModbusTcpClient_
 from modules.common.simcount import SimCounter
 from modules.common.store import get_bat_value_store
 from modules.devices.anker.anker_solix.config import AnkerBatSetup
@@ -69,7 +69,7 @@ class AnkerBat(AbstractBat):
 
             # Berechne power value: 0 = stop, != 0 = multipliziere mit -1
             # Laut Doku ist der min Wert 100W, ggf. noch Anpassung für power_limit=0 notwendig
-          
+
             power_value = 0 if power_limit == 0 else int(power_limit) * -1
             self.client.write_register(10071, power_value, data_type=ModbusDataType.INT_32, unit=unit)
             log.debug("Aktive Batteriesteuerung angefordert, angeforderte Leistung: {power_value} W")
@@ -78,4 +78,4 @@ class AnkerBat(AbstractBat):
         return True
 
 
-component_descriptor = ComponentDescriptor(configuration_factory=SungrowSHBatSetup)
+component_descriptor = ComponentDescriptor(configuration_factory=AnkerBatSetup)
