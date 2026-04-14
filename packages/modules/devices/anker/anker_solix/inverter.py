@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import logging
 from typing import TypedDict, Any
 
 from modules.common import modbus
@@ -7,19 +6,16 @@ from modules.common.abstract_device import AbstractInverter
 from modules.common.component_state import InverterState
 from modules.common.component_type import ComponentDescriptor
 from modules.common.fault_state import ComponentInfo, FaultState
-from modules.common.modbus import ModbusDataType
+from modules.common.modbus import ModbusDataType, ModbusTcpClient_
 from modules.common.simcount import SimCounter
 from modules.common.store import get_inverter_value_store
 from modules.devices.anker.anker_solix.config import AnkerInverterSetup
 from modules.common.utils.peak_filter import PeakFilter
 from modules.common.component_type import ComponentType
 
-log = logging.getLogger(__name__)
-
 
 class KwargsDict(TypedDict):
-    device_id: int
-    client: modbus.ModbusTcpClient_
+    client: ModbusTcpClient_
 
 
 class AnkerInverter(AbstractInverter):
@@ -28,19 +24,18 @@ class AnkerInverter(AbstractInverter):
         self.kwargs: KwargsDict = kwargs
 
     def initialize(self) -> None:
-        self.__device_id: int = self.kwargs['device_id']
-        self.__tcp_client: modbus.ModbusTcpClient_ = self.kwargs['client']
+        self.client: ModbusTcpClient_ = self.kwargs['client']
         self.sim_counter = SimCounter(self.__device_id, self.component_config.id, prefix="pv")
         self.store = get_inverter_value_store(self.component_config.id)
         self.fault_state = FaultState(ComponentInfo.from_component_config(self.component_config))
         self.peak_filter = PeakFilter(ComponentType.INVERTER, self.component_config.id, self.fault_state)
 
     def update(self) -> None:
-        modbus_id = self.component_config.configuration.modbus_id
+        unit = self.component_config.configuration.modbus_id
 
         # Register 10002 ist die PV_power also die DC Leistung, eine AC Leistung gibt es so nicht
-        power = self.__tcp_client.read_input_registers(10002, ModbusDataType.INT_32,
-                                                       wordorder=Endian.Little, unit=unit) * -1
+        power = self.client.read_input_registers(10002, ModbusDataType.INT_32,
+                                                 wordorder=Endian.Little, unit=unit) * -1
 
 
         self.peak_filter.check_values(power)
