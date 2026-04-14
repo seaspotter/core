@@ -12,6 +12,7 @@ from modules.common.component_type import ComponentType
 
 
 class KwargsDict(TypedDict):
+    device_id: int
     client: ModbusTcpClient_
 
 
@@ -21,6 +22,7 @@ class AnkerCounter:
         self.kwargs: KwargsDict = kwargs
 
     def initialize(self) -> None:
+        self.__device_id: int = self.kwargs['device_id']
         self.client: ModbusTcpClient_ = self.kwargs['client']
         self.sim_counter = SimCounter(self.__device_id, self.component_config.id, prefix="bezug")
         self.store = get_counter_value_store(self.component_config.id)
