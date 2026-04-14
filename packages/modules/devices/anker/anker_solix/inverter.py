@@ -34,14 +34,18 @@ class AnkerInverter(AbstractInverter):
     def update(self) -> None:
         unit = self.component_config.configuration.modbus_id
 
-        # Register 10002 ist die PV_power also die DC Leistung, eine AC Leistung gibt es so nicht
-        power = self.client.read_input_registers(10002, ModbusDataType.INT_32,
+        # Register 10002 ist die PV_power also die DC Leistung
+        # Register 10010 ist "Load_power" unklar ob dies wirklich die AC Leistung des Inverters ist
+        power = self.client.read_input_registers(10010, ModbusDataType.INT_32,
                                                  wordorder=Endian.Little, unit=unit) * -1
+        dc_power = self.client.read_input_registers(10002, ModbusDataType.INT_32,
+                                                    wordorder=Endian.Little, unit=unit) * -1
 
         self.peak_filter.check_values(power)
         imported, exported = self.sim_counter.sim_count(power)
         inverter_state = InverterState(
             power=power,
+            dc_power=dc_power,
             imported=imported,
             exported=exported
         )
