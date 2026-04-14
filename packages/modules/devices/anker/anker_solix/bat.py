@@ -2,7 +2,6 @@
 import logging
 from typing import Any, Optional, TypedDict
 
-from modules.common import modbus
 from modules.common.abstract_device import AbstractBat
 from modules.common.component_state import BatState
 from modules.common.component_type import ComponentDescriptor
@@ -13,7 +12,6 @@ from modules.common.store import get_bat_value_store
 from modules.devices.anker.anker_solix.config import AnkerBatSetup
 from modules.common.utils.peak_filter import PeakFilter
 from modules.common.component_type import ComponentType
-from control import data
 
 log = logging.getLogger(__name__)
 
@@ -41,7 +39,7 @@ class AnkerBat(AbstractBat):
         unit = self.component_config.configuration.modbus_id
 
         power = self.client.read_input_registers(10008, ModbusDataType.INT_32,
-                                                       wordorder=Endian.Little, unit=unit) * -1
+                                                 wordorder=Endian.Little, unit=unit) * -1
         soc = self.client.read_input_registers(10014, ModbusDataType.UINT_16, unit=unit)
 
         self.peak_filter.check_values(power)
