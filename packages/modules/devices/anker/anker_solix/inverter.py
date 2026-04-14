@@ -6,7 +6,7 @@ from modules.common.abstract_device import AbstractInverter
 from modules.common.component_state import InverterState
 from modules.common.component_type import ComponentDescriptor
 from modules.common.fault_state import ComponentInfo, FaultState
-from modules.common.modbus import ModbusDataType, ModbusTcpClient_
+from modules.common.modbus import ModbusDataType, Endian, ModbusTcpClient_
 from modules.common.simcount import SimCounter
 from modules.common.store import get_inverter_value_store
 from modules.devices.anker.anker_solix.config import AnkerInverterSetup
@@ -38,7 +38,6 @@ class AnkerInverter(AbstractInverter):
         # Register 10002 ist die PV_power also die DC Leistung, eine AC Leistung gibt es so nicht
         power = self.client.read_input_registers(10002, ModbusDataType.INT_32,
                                                  wordorder=Endian.Little, unit=unit) * -1
-
 
         self.peak_filter.check_values(power)
         imported, exported = self.sim_counter.sim_count(power)
