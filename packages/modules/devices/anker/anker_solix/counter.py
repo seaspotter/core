@@ -3,7 +3,7 @@ from typing import Any, TypedDict
 from modules.common.component_state import CounterState
 from modules.common.component_type import ComponentDescriptor
 from modules.common.fault_state import ComponentInfo, FaultState
-from modules.common.modbus import ModbusDataType, ModbusTcpClient_
+from modules.common.modbus import ModbusDataType, Endian, ModbusTcpClient_
 from modules.common.simcount import SimCounter
 from modules.common.store import get_counter_value_store
 from modules.devices.anker.anker_solix.config import AnkerCounterSetup
@@ -33,13 +33,13 @@ class AnkerCounter:
         unit = self.component_config.configuration.modbus_id
 
         power = self.client.read_input_registers(10644, ModbusDataType.INT_32,
-                                                       wordorder=Endian.Little, unit=unit) * -1
+                                                 wordorder=Endian.Little, unit=unit) * -1
         powers = self.client.read_input_registers(10638, [ModbusDataType.INT_32] * 3,
-                                                        wordorder=Endian.Little, unit=unit)
+                                                  wordorder=Endian.Little, unit=unit)
         voltages = self.client.read_input_registers(10632, [ModbusDataType.UINT_16] * 3,
-                                                          wordorder=Endian.Little, unit=unit) 
+                                                    wordorder=Endian.Little, unit=unit) 
         currents = self.client.read_input_registers(10666, [ModbusDataType.INT_16] * 3,
-                                                          wordorder=Endian.Little, unit=unit)
+                                                    wordorder=Endian.Little, unit=unit)
 
         voltages = [value / 10 for value in voltages]
         currents = [value / -100 for value in currents]
