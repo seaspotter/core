@@ -40,7 +40,7 @@ class AnkerBatSetup(ComponentSetup[AnkerBatConfiguration]):
 class AnkerCounterConfiguration:
     def __init__(self,
                  modbus_id: int = 1,
-                 ip_address: Optional[str] = None, 
+                 ip_address: Optional[str] = None,
                  port: int = 502):
         self.modbus_id = modbus_id
         self.ip_address = ip_address
