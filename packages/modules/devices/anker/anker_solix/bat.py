@@ -19,6 +19,7 @@ log = logging.getLogger(__name__)
 
 
 class KwargsDict(TypedDict):
+    device_id: int
     client: ModbusTcpClient_
 
 
@@ -28,6 +29,7 @@ class AnkerBat(AbstractBat):
         self.kwargs: KwargsDict = kwargs
 
     def initialize(self) -> None:
+        self.__device_id: int = self.kwargs['device_id']
         self.client: ModbusTcpClient_ = self.kwargs['client']
         self.sim_counter = SimCounter(self.__device_id, self.component_config.id, prefix="speicher")
         self.store = get_bat_value_store(self.component_config.id)
