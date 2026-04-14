@@ -24,7 +24,7 @@ class Anker:
 
 
 class AnkerBatConfiguration:
-    def __init__(self, modbus_id: int = 100):
+    def __init__(self, modbus_id: int = 1):
         self.modbus_id = modbus_id
 
 
@@ -53,7 +53,7 @@ class AnkerCounterSetup(ComponentSetup[AnkerCounterConfiguration]):
 
 
 class AnkerInverterConfiguration:
-    def __init__(self, mppt: bool = False, modbus_id: int = 100):
+    def __init__(self, mppt: bool = False, modbus_id: int = 1):
         self.mppt = mppt
         self.modbus_id = modbus_id
 
