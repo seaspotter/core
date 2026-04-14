@@ -37,13 +37,12 @@ class AnkerCounter:
         powers = self.client.read_input_registers(10638, [ModbusDataType.INT_32] * 3,
                                                   wordorder=Endian.Little, unit=unit)
         voltages = self.client.read_input_registers(10632, [ModbusDataType.UINT_16] * 3,
-                                                    wordorder=Endian.Little, unit=unit) 
+                                                    wordorder=Endian.Little, unit=unit)
         currents = self.client.read_input_registers(10666, [ModbusDataType.INT_16] * 3,
                                                     wordorder=Endian.Little, unit=unit)
 
         voltages = [value / 10 for value in voltages]
         currents = [value / -100 for value in currents]
-
 
         self.peak_filter.check_values(power)
         imported, exported = self.sim_counter.sim_count(power)
