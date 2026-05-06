@@ -16,7 +16,8 @@ class InverterValueStoreRamdisk(ValueStore[InverterState]):
         self.__pv = files.pv[component_num - 1]
 
     def set(self, inverter_state: InverterState):
-        self.__pv.power.write(int(inverter_state.power))
+        if inverter_state.power is not None:
+            self.__pv.power.write(int(inverter_state.power))
         self.__pv.energy.write(inverter_state.exported)
         self.__pv.energy_k.write(inverter_state.exported / 1000)
         if inverter_state.currents:
@@ -31,7 +32,8 @@ class InverterValueStoreBroker(ValueStore[InverterState]):
         self.state = inverter_state
 
     def update(self):
-        pub_to_broker("openWB/set/pv/" + str(self.num) + "/get/power", self.state.power, 2)
+        if self.state.power is not None:
+            pub_to_broker("openWB/set/pv/" + str(self.num) + "/get/power", self.state.power, 2)
         if self.state.exported is not None:
             pub_to_broker("openWB/set/pv/" + str(self.num) + "/get/exported", self.state.exported, 3)
         else:
@@ -45,8 +47,24 @@ class InverterValueStoreBroker(ValueStore[InverterState]):
 class PurgeInverterState:
     def __init__(self, delegate: LoggingValueStore) -> None:
         self.delegate = delegate
+        self.__last_state_had_power = None  # Track if last state had power value
 
     def set(self, state: InverterState) -> None:
+        # Check if only dc_power is available (power is None but dc_power exists)
+        if state.power is None and state.dc_power is not None:
+            # Only warn once when we first detect DC-only condition
+            if self.__last_state_had_power is not False:
+                self.delegate.delegate.fault_state.warning(
+                    "Für dieses Modul steht nur die DC Leistung zur Verfügung, "
+                    "die Summe der Leistungen kann daher leicht abweichen."
+                )
+                self.__last_state_had_power = False
+        elif state.power is not None:
+            # AC power is available again, clear warning if it was previously DC-only
+            if self.__last_state_had_power is False:
+                self.delegate.delegate.fault_state.no_error()
+            self.__last_state_had_power = True
+        
         self.delegate.set(state)
 
     def update(self) -> None:
@@ -56,7 +74,7 @@ class PurgeInverterState:
 
     def fix_hybrid_values(self, state: InverterState) -> InverterState:
         children = data.data.counter_all_data.get_entry_of_element(self.delegate.delegate.num)["children"]
-        power = state.power
+        power = state.power if state.power is not None else 0
         exported = state.exported
         imported = state.imported
         if len(children):
