@@ -48,8 +48,10 @@ def _calculate_powers_and_currents(currents: Optional[List[Optional[float]]],
     return currents, powers, voltages
 
 
-def check_currents_power_sign(currents: Optional[List[Optional[float]]], power: float) -> bool:
+def check_currents_power_sign(currents: Optional[List[Optional[float]]], power: Optional[float]) -> bool:
     """Check if the sign of the sum of currents matches the power sign or both zero."""
+    if power is None:
+        return True
     return any([
         sum(currents) < 0 and power < 0,
         sum(currents) > 0 and power > 0,
@@ -127,7 +129,7 @@ class InverterState:
     def __init__(
         self,
         exported: float,
-        power: float,
+        power: Optional[float] = None,
         imported: float = 0,  # simulated import counter to properly calculate PV energy when bat is charged from AC
         currents: Optional[List[Optional[float]]] = None,
         dc_power: Optional[float] = None,
@@ -136,20 +138,33 @@ class InverterState:
         """Args:
             exported: total energy in Wh
             imported: total energy in Wh
-            power: actual power in W
+            power: actual AC power in W. Optional - if None, only dc_power is available.
+                   If power is None but dc_power is available, power will be set to dc_power.
             currents: actual currents for 3 phases in A
-            dc_power: dc power in W
+            dc_power: dc power in W (optional)
+            serial_number: device serial number (optional)
+            
+        Note:
+            If power is None but dc_power is available, the power will automatically be set to dc_power
+            for downstream processing, and a warning will be issued to the user via fault_state.
         """
-        if _check_none(currents):
-            currents = [0.0]*3
+        # Use dc_power as fallback if power is None
+        if power is None and dc_power is not None:
+            self.power = dc_power
         else:
-            if not check_currents_power_sign(currents, power):
-                log.debug("currents sign wrong "+str(currents))
-        self.currents = currents
-        self.power = power
+            self.power = power
+            
         self.exported = exported
         self.imported = imported
         self.dc_power = dc_power
+        
+        if _check_none(currents):
+            currents = [0.0]*3
+        else:
+            power_for_check = power if power is not None else dc_power
+            if power_for_check is not None and not check_currents_power_sign(currents, power_for_check):
+                log.debug("currents sign wrong "+str(currents))
+        self.currents = currents
         self.serial_number = serial_number
 
 
