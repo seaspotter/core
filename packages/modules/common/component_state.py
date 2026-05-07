@@ -149,8 +149,10 @@ class InverterState:
             for downstream processing, and a warning will be issued to the user via fault_state.
         """
         # Use dc_power as fallback if power is None
+        self.power_is_dc_only = False  # Track if we used dc_power as fallback
         if power is None and dc_power is not None:
             self.power = dc_power
+            self.power_is_dc_only = True  # Mark that we're using DC-only power
         else:
             self.power = power
             
