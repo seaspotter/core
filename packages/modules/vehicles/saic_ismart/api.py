@@ -10,8 +10,8 @@ from saic_ismart_client_ng.model import SaicApiConfiguration
 
 log = logging.getLogger(__name__)
 
-# Bei diesem Wert (10-Bit-Feld, max. 1023) hat die SAIC-Cloud keine
-# aktuellen Daten vom Fahrzeug erhalten - Auto muss erst "geweckt" werden.
+# 10-Bit-Sentinel: SAIC-Cloud hat keine aktuellen Daten vom Fahrzeug,
+# muss erst per get_vehicle_status() geweckt werden.
 SOC_INVALID_SENTINEL = 1023
 
 
@@ -63,9 +63,8 @@ async def _fetch_soc(cfg: SaicIsmartConfiguration) -> CarState:
 
 
 def fetch_soc(config: SaicIsmartConfiguration) -> CarState:
-    """Synchroner Einstiegspunkt für openWB (analog leaf/api.py).
-    Polling-Intervalle (waehrend/ohne Ladung, nur wenn angesteckt) werden
-    generisch von ConfigurableVehicle im Core gesteuert, nicht hier."""
+    """Polling-Intervalle werden generisch von ConfigurableVehicle im
+    Core gesteuert, nicht hier."""
     if not config.saic_user or not config.saic_password:
         raise Exception("SAIC iSMART: Zugangsdaten nicht konfiguriert!")
 
