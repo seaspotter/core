@@ -58,18 +58,16 @@ NO_MODULE = {"type": None, "configuration": {}}
 
 class UpdateConfig:
 
-    DATASTORE_VERSION = 142
+    DATASTORE_VERSION = 141
 
     valid_topic = [
-        "^openWB/bat/config/bat_control_activated$",
         "^openWB/bat/config/control_mode$",
+        "^openWB/bat/config/manual_control$",
         "^openWB/bat/config/manual_power$",
         "^openWB/bat/config/charge_power_limit$",
         "^openWB/bat/config/bat_control_min_soc$",
         "^openWB/bat/config/bat_control_max_soc$",
-        "^openWB/bat/config/price_limit_activated$",
         "^openWB/bat/config/price_limit$",
-        "^openWB/bat/config/price_charge_activated$",
         "^openWB/bat/config/charge_limit$",
         "^openWB/bat/[0-9]+/config/max_power$",
         "^openWB/bat/[0-9]+/get/max_charge_power$",
@@ -574,15 +572,13 @@ class UpdateConfig:
         "^openWB/system/version$",
     ]
     default_topic = (
-        ("openWB/bat/config/bat_control_activated", False),
-        ("openWB/bat/config/control_mode", "block_discharge_while_vehicle_charging"),
+        ("openWB/bat/config/control_mode", "self_regulation"),
+        ("openWB/bat/config/manual_control", "stop"),
         ("openWB/bat/config/manual_power", None),
         ("openWB/bat/config/charge_power_limit", None),
         ("openWB/bat/config/bat_control_min_soc", 5),
         ("openWB/bat/config/bat_control_max_soc", 90),
-        ("openWB/bat/config/price_limit_activated", False),
         ("openWB/bat/config/price_limit", 0.3),
-        ("openWB/bat/config/price_charge_activated", False),
         ("openWB/bat/config/charge_limit", 0.3),
         ("openWB/bat/config/configured", False),
         ("openWB/bat/get/fault_state", 0),
@@ -3560,55 +3556,73 @@ class UpdateConfig:
 
     def upgrade_datastore_141(self) -> None:
         def upgrade(topic: str, payload) -> Optional[dict]:
-            # manual_mode wird durch bat_control_preset (power_limit_mode um MODE_FORCE_CHARGE
-            # erweitert) ersetzt. manual_charge nur dann uebernehmen, wenn es auch tatsaechlich
-            # ueber die Bedingung "manual" erreichbar war - bei "vehicle_charging" war der Wert
-            # in der UI nie waehlbar (Button deaktiviert) und darf keine Ladung erzwingen.
-            if topic == "openWB/bat/config/manual_mode":
-                manual_mode = decode_payload(payload)
-                condition = decode_payload(self.all_received_topics.get(
-                    "openWB/bat/config/power_limit_condition", '"manual"'))
-                if manual_mode == "manual_charge" and condition == "manual":
-                    return {"openWB/bat/config/power_limit_mode": "mode_force_charge",
-                            "openWB/bat/config/manual_mode": ""}
-                return {"openWB/bat/config/manual_mode": ""}
+            # Speichersteuerung vereinfacht: bat_control_activated, power_limit_condition,
+            # power_limit_mode, manual_mode, price_limit_activated und price_charge_activated
+            # werden durch ein einzelnes Auswahlfeld control_mode (plus manual_control fuer den
+            # Modus MANUAL) ersetzt. "aus" wird direkt zum Modus SELF_REGULATION statt eines
+            # separaten Schalters. Die vormals kombinierbare Preisgrenze (zwei unabhaengige
+            # Checkboxen) wird in zwei eigenstaendige, sich gegenseitig ausschliessende Modi
+            # aufgeteilt - bei alten Konfigurationen mit beiden aktiven Checkboxen hat
+            # price_charge_activated (Laden erzwingen) Vorrang. Fuer "Entladesperre/Nur
+            # Hausverbrauch/PV-Ertrag speichern" im manuellen Modus (dauerhaft, nicht an
+            # Fahrzeugladung gekoppelt) gibt es kein Pendant mehr - Entladesperre (immer) ist hier
+            # die konservativste Naeherung (keine ungewollte Entladung), statt die aktive
+            # Steuerung stillschweigend zu deaktivieren.
+            stale_topics = ("openWB/bat/config/power_limit_condition",
+                            "openWB/bat/config/power_limit_mode",
+                            "openWB/bat/config/manual_mode",
+                            "openWB/bat/config/price_limit_activated",
+                            "openWB/bat/config/price_charge_activated")
+
+            def get_old_value(topic_suffix: str, default):
+                # .get(key, default) mit decode_payload() ist nur sicher, wenn default bereits
+                # der gewuenschte Python-Wert ist - ein JSON-kodiertes String-Literal als default
+                # (z.B. '"foo"') wird von decode_payload() NICHT mehr entquotet, da es nicht von
+                # bytes kommt (siehe AttributeError-Zweig in decode_payload).
+                raw = self.all_received_topics.get(f"openWB/bat/config/{topic_suffix}")
+                return decode_payload(raw) if raw is not None else default
+
+            if topic == "openWB/bat/config/bat_control_activated":
+                updated_topics = {"openWB/bat/config/bat_control_activated": ""}
+                for stale_topic in stale_topics:
+                    if stale_topic in self.all_received_topics:
+                        updated_topics[stale_topic] = ""
+
+                if not decode_payload(payload):
+                    updated_topics["openWB/bat/config/control_mode"] = "self_regulation"
+                    return updated_topics
+
+                condition = get_old_value("power_limit_condition", "vehicle_charging")
+                mode = get_old_value("power_limit_mode", "mode_no_discharge")
+
+                if condition == "manual":
+                    manual_mode = get_old_value("manual_mode", "manual_disable")
+                    if manual_mode == "manual_charge":
+                        updated_topics["openWB/bat/config/control_mode"] = "manual"
+                        updated_topics["openWB/bat/config/manual_control"] = "charge"
+                    else:
+                        updated_topics["openWB/bat/config/control_mode"] = "block_discharge"
+                elif condition == "vehicle_charging":
+                    updated_topics["openWB/bat/config/control_mode"] = {
+                        "mode_discharge_home_consumption": "home_consumption_only_while_vehicle_charging",
+                        "mode_charge_pv_production": "keep_pv_yield_while_vehicle_charging",
+                    }.get(mode, "block_discharge")
+                else:
+                    # price_limit
+                    price_charge_activated = get_old_value("price_charge_activated", False)
+                    price_limit_activated = get_old_value("price_limit_activated", False)
+                    if price_charge_activated:
+                        updated_topics["openWB/bat/config/control_mode"] = "force_charge_below_price"
+                    elif price_limit_activated:
+                        updated_topics["openWB/bat/config/control_mode"] = "block_discharge_above_price"
+                    else:
+                        updated_topics["openWB/bat/config/control_mode"] = "self_regulation"
+                return updated_topics
+            elif topic in stale_topics:
+                # werden oben zusammen mit bat_control_activated verarbeitet; falls
+                # bat_control_activated aus irgendeinem Grund fehlt, hier trotzdem aufraeumen.
+                if "openWB/bat/config/bat_control_activated" not in self.all_received_topics:
+                    return {topic: ""}
             return None
         self._loop_all_received_topics(upgrade)
         self._append_datastore_version(141)
-
-    def upgrade_datastore_142(self) -> None:
-        def upgrade(topic: str, payload) -> Optional[dict]:
-            # power_limit_condition + power_limit_mode werden durch ein einzelnes Auswahlfeld
-            # control_mode ersetzt (ein Regelbedingung/Regelmodus-Paar statt zwei verschachtelter
-            # Auswahlfelder). "manual" + {no_discharge, discharge_home_consumption,
-            # charge_pv_production} (dauerhaft, nicht an Fahrzeugladung gekoppelt) hat keine
-            # 1:1-Entsprechung mehr - Entladesperre ist hier die konservativste Naeherung
-            # (keine ungewollte Entladung), statt die aktive Steuerung stillschweigend zu
-            # deaktivieren.
-            if topic == "openWB/bat/config/power_limit_condition":
-                condition = decode_payload(payload)
-                mode = decode_payload(self.all_received_topics.get(
-                    "openWB/bat/config/power_limit_mode", '"mode_no_discharge"'))
-                if condition == "vehicle_charging":
-                    control_mode = {
-                        "mode_no_discharge": "block_discharge_while_vehicle_charging",
-                        "mode_discharge_home_consumption": "home_consumption_only_while_vehicle_charging",
-                        "mode_charge_pv_production": "keep_pv_yield_while_vehicle_charging",
-                    }.get(mode, "block_discharge_while_vehicle_charging")
-                elif condition == "manual":
-                    control_mode = "force_charge" if mode == "mode_force_charge" else "block_discharge"
-                else:
-                    control_mode = "price_based"
-                updated_topics = {"openWB/bat/config/control_mode": control_mode,
-                                  "openWB/bat/config/power_limit_condition": ""}
-                if "openWB/bat/config/power_limit_mode" in self.all_received_topics:
-                    updated_topics["openWB/bat/config/power_limit_mode"] = ""
-                return updated_topics
-            elif topic == "openWB/bat/config/power_limit_mode":
-                # wird oben zusammen mit power_limit_condition verarbeitet; falls
-                # power_limit_condition aus irgendeinem Grund fehlt, hier trotzdem aufraeumen.
-                if "openWB/bat/config/power_limit_condition" not in self.all_received_topics:
-                    return {"openWB/bat/config/power_limit_mode": ""}
-            return None
-        self._loop_all_received_topics(upgrade)
-        self._append_datastore_version(142)

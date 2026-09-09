@@ -1178,12 +1178,6 @@
 				},
 				{
 					"acltype": "publishClientSend",
-					"topic": "openWB/set/bat/config/bat_control_activated",
-					"priority": 0,
-					"allow": true
-				},
-				{
-					"acltype": "publishClientSend",
 					"topic": "openWB/set/bat/config/bat_control_max_soc",
 					"priority": 0,
 					"allow": true
@@ -1208,6 +1202,12 @@
 				},
 				{
 					"acltype": "publishClientSend",
+					"topic": "openWB/set/bat/config/manual_control",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientSend",
 					"topic": "openWB/set/bat/config/manual_power",
 					"priority": 0,
 					"allow": true
@@ -1220,19 +1220,7 @@
 				},
 				{
 					"acltype": "publishClientSend",
-					"topic": "openWB/set/bat/config/price_charge_activated",
-					"priority": 0,
-					"allow": true
-				},
-				{
-					"acltype": "publishClientSend",
 					"topic": "openWB/set/bat/config/price_limit",
-					"priority": 0,
-					"allow": true
-				},
-				{
-					"acltype": "publishClientSend",
-					"topic": "openWB/set/bat/config/price_limit_activated",
 					"priority": 0,
 					"allow": true
 				},
@@ -1310,12 +1298,6 @@
 				},
 				{
 					"acltype": "publishClientReceive",
-					"topic": "openWB/bat/config/bat_control_activated",
-					"priority": 0,
-					"allow": true
-				},
-				{
-					"acltype": "publishClientReceive",
 					"topic": "openWB/bat/config/bat_control_max_soc",
 					"priority": 0,
 					"allow": true
@@ -1340,6 +1322,12 @@
 				},
 				{
 					"acltype": "publishClientReceive",
+					"topic": "openWB/bat/config/manual_control",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientReceive",
 					"topic": "openWB/bat/config/manual_power",
 					"priority": 0,
 					"allow": true
@@ -1352,19 +1340,7 @@
 				},
 				{
 					"acltype": "publishClientReceive",
-					"topic": "openWB/bat/config/price_charge_activated",
-					"priority": 0,
-					"allow": true
-				},
-				{
-					"acltype": "publishClientReceive",
 					"topic": "openWB/bat/config/price_limit",
-					"priority": 0,
-					"allow": true
-				},
-				{
-					"acltype": "publishClientReceive",
-					"topic": "openWB/bat/config/price_limit_activated",
 					"priority": 0,
 					"allow": true
 				},

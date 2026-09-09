@@ -39,24 +39,29 @@ class BatConsiderationMode(Enum):
 
 
 class BatControlMode(Enum):
-    BLOCK_DISCHARGE_WHILE_VEHICLE_CHARGING = "block_discharge_while_vehicle_charging"
+    SELF_REGULATION = "self_regulation"
     HOME_CONSUMPTION_ONLY_WHILE_VEHICLE_CHARGING = "home_consumption_only_while_vehicle_charging"
-    KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING = "keep_pv_yield_while_vehicle_charging"
-    FORCE_CHARGE = "force_charge"
     BLOCK_DISCHARGE = "block_discharge"
-    PRICE_BASED = "price_based"
+    KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING = "keep_pv_yield_while_vehicle_charging"
+    FORCE_CHARGE_BELOW_PRICE = "force_charge_below_price"
+    BLOCK_DISCHARGE_ABOVE_PRICE = "block_discharge_above_price"
+    MANUAL = "manual"
     # Ladeleistung begrenzen, Speicher bleibt sonst in Eigenregelung (Entladung, Timing etc.
     # werden nicht vorgegeben) - nutzt set_charge_power_limit statt set_power_limit, siehe
     # AbstractBat. Auch auf Speichern nutzbar, die keine bidirektionale Vorgabe unterstützen.
     LIMIT_CHARGE_POWER = "limit_charge_power"
-    # Kein "Entladung erzwingen" - siehe BatChargeMode.BAT_FORCE_DISCHARGE.
+    # Prognosebasierte Lastspitzenkappung - noch nicht implementiert, siehe
+    # get_power_limit()/PEAK_SHAVING. Modus bereits waehlbar, damit die UI/Migration nicht
+    # nochmal angepasst werden muss, sobald die Logik dahinter umgesetzt wird.
+    PEAK_SHAVING = "peak_shaving"
 
 
-class BatChargeMode(Enum):
-    # Absichtlich der einzige Wert: den Speicher unabhängig vom Hausverbrauch aktiv zu
-    # entladen (Netzeinspeisung aus dem Speicher erzwingen) ist in Deutschland nicht erlaubt,
-    # daher gibt es dafür keinen control_mode und keine Berechnung, die diesen Wert erzeugt.
-    BAT_FORCE_DISCHARGE = "bat_force_discharge"  # in DE nicht erlaubt
+class ManualControl(Enum):
+    CHARGE = "charge"
+    STOP = "stop"
+    # Kein DISCHARGE: den Speicher unabhängig vom Hausverbrauch aktiv zu entladen (Netz-
+    # einspeisung aus dem Speicher erzwingen) ist in Deutschland nicht erlaubt. Wird in der UI
+    # als Option sichtbar, aber deaktiviert dargestellt, damit klar ist, dass sie bewusst fehlt.
 
 
 class CurrentState(Enum):
@@ -68,18 +73,19 @@ class CurrentState(Enum):
 @dataclass
 class Config:
     configured: bool = field(default=False, metadata={"topic": "config/configured"})
-    bat_control_activated: bool = field(default=False, metadata={"topic": "config/bat_control_activated"})
-    control_mode: str = field(default=BatControlMode.BLOCK_DISCHARGE_WHILE_VEHICLE_CHARGING.value,
+    control_mode: str = field(default=BatControlMode.SELF_REGULATION.value,
                               metadata={"topic": "config/control_mode"})
-    # kW-Vorgabe fuer FORCE_CHARGE; None/0 = mit maximaler Ladeleistung laden
+    # nur relevant fuer control_mode == MANUAL
+    manual_control: str = field(default=ManualControl.STOP.value, metadata={"topic": "config/manual_control"})
+    # kW-Vorgabe fuer MANUAL+CHARGE; None/0 = mit maximaler Ladeleistung laden
     manual_power: Optional[int] = field(default=None, metadata={"topic": "config/manual_power"})
     # W-Obergrenze fuer LIMIT_CHARGE_POWER
     charge_power_limit: Optional[int] = field(default=None, metadata={"topic": "config/charge_power_limit"})
     bat_control_min_soc: int = field(default=10, metadata={"topic": "config/bat_control_min_soc"})
     bat_control_max_soc: int = field(default=90, metadata={"topic": "config/bat_control_max_soc"})
-    price_limit_activated: bool = field(default=False, metadata={"topic": "config/price_limit_activated"})
-    price_charge_activated: bool = field(default=False, metadata={"topic": "config/price_charge_activated"})
+    # Preisgrenze fuer BLOCK_DISCHARGE_ABOVE_PRICE
     price_limit: float = field(default=0.30, metadata={"topic": "config/price_limit"})
+    # Preisgrenze fuer FORCE_CHARGE_BELOW_PRICE
     charge_limit: float = field(default=0.30, metadata={"topic": "config/charge_limit"})
 
 
@@ -302,6 +308,16 @@ class BatAll:
             bat_component_data = data.data.bat_data[f"bat{bat_component.component_config.id}"].data
             if charge_power_limit is None:
                 bat_component_data.set.charge_power_limit = None
+            elif bat_component_data.get.max_charge_power <= 0:
+                # Ohne konfigurierte maximale Ladeleistung (Lastmanagement) laesst sich keine
+                # sinnvolle Obergrenze berechnen - lieber unbegrenzt lassen und warnen, statt
+                # stillschweigend auf 0W zu kappen (saehe wie "funktioniert nicht" aus, ohne
+                # erkennbaren Grund).
+                bat_component_data.set.charge_power_limit = None
+                bat_component.fault_state.warning(
+                    "Für die Ladeleistungsbegrenzung muss die maximale Ladeleistung dieses "
+                    "Speichers im Lastmanagement konfiguriert werden.")
+                bat_component.fault_state.store_error()
             else:
                 # nie mehr als die konfigurierte maximale Ladeleistung dieses Speichers zulassen
                 bat_component_data.set.charge_power_limit = min(
@@ -351,9 +367,7 @@ class BatAll:
                 # Speicher sollte weder ge- noch entladen werden.
                 # wenn aktive Speichersteuerung in Höhe PV-Leistung lädt
                 # hat Speicher Priorität vor EV-Ladung
-                if (self.data.config.bat_control_activated and
-                        self.data.config.control_mode ==
-                        BatControlMode.KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING.value):
+                if self.data.config.control_mode == BatControlMode.KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING.value:
                     charging_power_left = 0
                 else:
                     charging_power_left = self.data.get.power
@@ -390,20 +404,21 @@ class BatAll:
                     else:
                         if self.data.set.power_limit is None:
                             # set allowed power
-                            if (self.data.config.bat_control_activated and
-                                    self.data.config.control_mode ==
+                            if (self.data.config.control_mode ==
                                     BatControlMode.KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING.value):
                                 base_power = 0
                             else:
                                 base_power = self.data.get.power
 
                             # Aktive Steuerung nicht konfiguriert oder
-                            # Aktive Steuerung + Preisgrenze aktiv + Grenze nicht unterschritten
+                            # Preisbasierte Steuerung aktiv + Grenze nicht unterschritten
                             # -> dann erlaubte Speicherentladeleistung addieren
-                            power_discharge_allowed = (self.data.config.bat_control_activated is False or
-                                                       (self.data.config.control_mode ==
-                                                        BatControlMode.PRICE_BASED.value and
-                                                        self.data.set.power_limit is None))
+                            power_discharge_allowed = (
+                                self.data.config.control_mode == BatControlMode.SELF_REGULATION.value or
+                                (self.data.config.control_mode in (
+                                    BatControlMode.FORCE_CHARGE_BELOW_PRICE.value,
+                                    BatControlMode.BLOCK_DISCHARGE_ABOVE_PRICE.value) and
+                                 self.data.set.power_limit is None))
                             if config.bat_power_discharge_active and power_discharge_allowed:
                                 # max Entladeleistung auf max Ausgangsleistung des WR begrenzen
                                 required_absolut_discharge_power = min(
@@ -428,20 +443,20 @@ class BatAll:
                     self.data.set.hysteresis_discharge = True
                     if self.data.set.power_limit is None:
                         # set allowed power
-                        if (self.data.config.bat_control_activated and
-                                self.data.config.control_mode ==
-                                BatControlMode.KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING.value):
+                        if self.data.config.control_mode == BatControlMode.KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING.value:
                             base_power = 0
                         else:
                             base_power = self.data.get.power
 
                         # Aktive Steuerung nicht konfiguriert oder
-                        # Aktive Steuerung + Preisgrenze aktiv + Grenze nicht unterschritten
+                        # Preisbasierte Steuerung aktiv + Grenze nicht unterschritten
                         # -> dann erlaubte Speicherentladeleistung addieren
-                        power_discharge_allowed = (self.data.config.bat_control_activated is False or
-                                                   (self.data.config.control_mode ==
-                                                    BatControlMode.PRICE_BASED.value and
-                                                    self.data.set.power_limit is None))
+                        power_discharge_allowed = (
+                            self.data.config.control_mode == BatControlMode.SELF_REGULATION.value or
+                            (self.data.config.control_mode in (
+                                BatControlMode.FORCE_CHARGE_BELOW_PRICE.value,
+                                BatControlMode.BLOCK_DISCHARGE_ABOVE_PRICE.value) and
+                             self.data.set.power_limit is None))
                         if config.bat_power_discharge_active and power_discharge_allowed:
                             # max Entladeleistung auf max Ausgangsleistung des WR begrenzen
                             required_absolut_discharge_power = min(
@@ -551,67 +566,91 @@ class BatAll:
             log.debug("Speicher-Leistung nicht begrenzen.")
         return None
 
-    def _price_based_power_limit(self, controllable_bat_components) -> Optional[float]:
+    def _force_charge_below_price_power(self, controllable_bat_components) -> Optional[float]:
         if not data.data.optional_data.data.electricity_pricing.configured:
             return None
-        if (self.data.config.price_charge_activated and
-                data.data.optional_data.ep_is_charging_allowed_price_threshold(
-                self.data.config.charge_limit)):
-            log.debug((f"Aktive Speichersteuerung: Ladung erzwingen. "
-                      f"Preislimit: {self.data.config.charge_limit}"))
+        if data.data.optional_data.ep_is_charging_allowed_price_threshold(self.data.config.charge_limit):
+            log.debug(f"Aktive Speichersteuerung: Ladung erzwingen. Preislimit: {self.data.config.charge_limit}")
+            # manual_power gilt nur fuer MANUAL - hier immer mit voller Leistung laden.
             return self._force_charge_power(controllable_bat_components)
-        elif (self.data.config.price_limit_activated and
-                data.data.optional_data.ep_is_charging_allowed_price_threshold(
-                self.data.config.price_limit)):
-            log.debug((f"Aktive Speichersteuerung: Ladelimit anwenden. "
-                      f"Preislimit: {self.data.config.price_limit}"))
-            return self._use_limit_power()
         return None
 
-    def _force_charge_power(self, controllable_bat_components) -> float:
+    def _block_discharge_above_price_power(self) -> Optional[float]:
+        if not data.data.optional_data.data.electricity_pricing.configured:
+            return None
+        if data.data.optional_data.ep_is_charging_allowed_price_threshold(self.data.config.price_limit):
+            # Preis liegt auf/unter der Grenze -> keine Entladesperre nötig
+            return None
+        log.debug(f"Aktive Speichersteuerung: Entladesperre. Preislimit: {self.data.config.price_limit}")
+        return self._use_limit_power()
+
+    def _manual_power(self, controllable_bat_components) -> Optional[float]:
+        if self.data.config.manual_control == ManualControl.CHARGE.value:
+            log.debug("Aktive Speichersteuerung: Manuelle Vorgabe - Speicher laden.")
+            return self._force_charge_power(controllable_bat_components, self.data.config.manual_power)
+        # STOP (Standard) sowie jeder unbekannte Wert - Entladen ist in DE nicht erlaubt und
+        # daher in ManualControl kein wählbarer Wert.
+        log.debug("Aktive Speichersteuerung: Manuelle Vorgabe - Stop.")
+        return self._use_limit_power()
+
+    def _force_charge_power(self, controllable_bat_components, manual_power: Optional[int] = None) -> float:
         # maximal konfigurierte Ladeleistung des Speichers ermitteln (Obergrenze für eine
-        # manuelle Vorgabe unterhalb des Maximums)
+        # manuelle Vorgabe unterhalb des Maximums). manual_power wird nur von MANUAL uebergeben -
+        # FORCE_CHARGE_BELOW_PRICE laedt immer mit voller Leistung, unabhaengig von einem evtl.
+        # anderswo konfigurierten manual_power-Wert.
         max_charge_power_total = 0
         for bat_component in controllable_bat_components:
             bat_component_data = data.data.bat_data[f"bat{bat_component.component_config.id}"].data
             max_charge_power_total += bat_component_data.get.max_charge_power
-        if self.data.config.manual_power:
-            return min(self.data.config.manual_power, max_charge_power_total)
+        if manual_power:
+            if manual_power > max_charge_power_total:
+                # Backend-seitige Absicherung (defense in depth) fuer den Fall, dass ein zu hoher
+                # Wert trotz UI-seitiger Begrenzung eingetragen wurde (z.B. direkt per MQTT/API,
+                # oder bevor die UI-seitige Obergrenze umgesetzt ist) - wird begrenzt, nicht
+                # ignoriert, aber sichtbar gemeldet statt stillschweigend gekappt.
+                for bat_component in controllable_bat_components:
+                    bat_component.fault_state.warning(
+                        f"Die manuell eingestellte Ladeleistung ({manual_power}W) übersteigt die "
+                        f"maximale Ladeleistung der Speicher ({max_charge_power_total}W) und wird "
+                        "entsprechend begrenzt.")
+                    bat_component.fault_state.store_error()
+            return min(manual_power, max_charge_power_total)
         return max_charge_power_total
 
     def get_power_limit(self):
         controllable_bat_components, _ = get_bat_components_by_controllability()
-        # Falls kein steuerbarer Speicher installiert oder die aktive Speichersteuerung deaktiviert ist
-        if (self.data.get.power_limit_controllable is False or
-                self.data.config.bat_control_activated is False):
+        control_mode = self.data.config.control_mode
+        # Falls kein steuerbarer Speicher installiert oder Eigenregelung gewählt ist
+        if self.data.get.power_limit_controllable is False or control_mode == BatControlMode.SELF_REGULATION.value:
             power_limit = None
             if self.data.get.power_limit_controllable is False:
                 log.debug("Speicher-Leistung nicht begrenzen, da keine regelbaren Speicher vorhanden sind.")
-            elif self.data.config.bat_control_activated is False:
-                log.debug("Speicher-Leistung nicht begrenzen, da aktive Speichersteuerung deaktiviert ist.")
+            elif control_mode == BatControlMode.SELF_REGULATION.value:
+                log.debug("Speicher-Leistung nicht begrenzen, da Eigenregelung gewählt ist.")
+        elif control_mode in (BatControlMode.HOME_CONSUMPTION_ONLY_WHILE_VEHICLE_CHARGING.value,
+                              BatControlMode.KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING.value):
+            log.debug("Aktive Speichersteuerung: Wenn Fahrzeuge laden.")
+            power_limit = self._vehicle_charging_power_limit()
+        elif control_mode == BatControlMode.FORCE_CHARGE_BELOW_PRICE.value:
+            log.debug("Aktive Speichersteuerung: Laden erzwingen bei niedrigem Strompreis.")
+            power_limit = self._force_charge_below_price_power(controllable_bat_components)
+        elif control_mode == BatControlMode.BLOCK_DISCHARGE_ABOVE_PRICE.value:
+            log.debug("Aktive Speichersteuerung: Entladesperre bei hohem Strompreis.")
+            power_limit = self._block_discharge_above_price_power()
+        elif control_mode == BatControlMode.MANUAL.value:
+            log.debug("Aktive Speichersteuerung: Manuelle Vorgabe.")
+            power_limit = self._manual_power(controllable_bat_components)
+        elif control_mode == BatControlMode.BLOCK_DISCHARGE.value:
+            log.debug("Aktive Speichersteuerung: Entladesperre.")
+            power_limit = self._use_limit_power()
         else:
-            control_mode = self.data.config.control_mode
-            if control_mode in (BatControlMode.BLOCK_DISCHARGE_WHILE_VEHICLE_CHARGING.value,
-                                BatControlMode.HOME_CONSUMPTION_ONLY_WHILE_VEHICLE_CHARGING.value,
-                                BatControlMode.KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING.value):
-                log.debug("Aktive Speichersteuerung: Wenn Fahrzeuge laden.")
-                power_limit = self._vehicle_charging_power_limit()
-            elif control_mode == BatControlMode.PRICE_BASED.value:
-                log.debug("Aktive Speichersteuerung: Strompreisbasiert.")
-                power_limit = self._price_based_power_limit(controllable_bat_components)
-            elif control_mode == BatControlMode.FORCE_CHARGE.value:
-                log.debug("Aktive Speichersteuerung: Speicher laden.")
-                power_limit = self._force_charge_power(controllable_bat_components)
-            elif control_mode == BatControlMode.BLOCK_DISCHARGE.value:
-                log.debug("Aktive Speichersteuerung: Entladesperre.")
-                power_limit = self._use_limit_power()
-            else:
-                power_limit = None
+            # LIMIT_CHARGE_POWER und PEAK_SHAVING (noch nicht implementiert) greifen nicht in
+            # den bidirektionalen Pfad ein.
+            power_limit = None
 
         # Unabhängig von power_limit: LIMIT_CHARGE_POWER nutzt set_charge_power_limit statt
         # set_power_limit und lässt den Speicher ansonsten in Eigenregelung (siehe AbstractBat).
-        if (self.data.config.bat_control_activated and
-                self.data.config.control_mode == BatControlMode.LIMIT_CHARGE_POWER.value):
+        if control_mode == BatControlMode.LIMIT_CHARGE_POWER.value:
             self.data.set.charge_power_limit = self.data.config.charge_power_limit
         else:
             self.data.set.charge_power_limit = None
@@ -620,7 +659,7 @@ class BatAll:
         if power_limit is None:
             log.debug("Speicher-Leistung nicht begrenzen")
 
-        if (self.data.config.bat_control_activated is False
+        if (control_mode == BatControlMode.SELF_REGULATION.value
                 and self.data.set.current_state == CurrentState.STARTUP.value):
             self.data.set.set_limit = False
         elif self.data.set.current_state == CurrentState.IDLE.value and power_limit is None:
@@ -638,9 +677,8 @@ class BatAll:
 
         HOME_CONSUMPTION_ONLY_WHILE_VEHICLE_CHARGING und KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING
         werden nur erreicht, nachdem _vehicle_charging_power_limit() Fahrzeugladung als
-        Bedingung bereits geprüft hat. Alle übrigen Fälle (BLOCK_DISCHARGE, PRICE_BASED) sperren
-        die Entladung vollständig - eine Auswahl des Regelmodus für den oberen Preis-Schwellwert
-        wird bewusst nicht mehr angeboten (ein Auswahlfeld statt drei verschachtelte).
+        Bedingung bereits geprüft hat. Alle übrigen Fälle (BLOCK_DISCHARGE,
+        BLOCK_DISCHARGE_ABOVE_PRICE, MANUAL+Stop) sperren die Entladung vollständig.
         """
         control_mode = self.data.config.control_mode
         if control_mode == BatControlMode.HOME_CONSUMPTION_ONLY_WHILE_VEHICLE_CHARGING.value:
@@ -661,21 +699,17 @@ class BatAll:
         return power_limit
 
     def time_charging_min_bat_soc_allowed(self) -> bool:
-        if self.data.config.configured and self.data.config.bat_control_activated:
+        if self.data.config.configured:
             control_mode = self.data.config.control_mode
-            if control_mode != BatControlMode.PRICE_BASED.value:
-                # jeder nicht preisbasierte Modus (Fahrzeugladung, Sofortladen, Entladesperre)
-                # kann den Speicher jederzeit beanspruchen
-                return False
-            if ((self.data.config.price_limit_activated and
-                    data.data.optional_data.ep_is_charging_allowed_price_threshold(
-                        self.data.config.price_limit))
-                or (self.data.config.price_charge_activated and
-                    data.data.optional_data.ep_is_charging_allowed_price_threshold(
-                        self.data.config.charge_limit))):
+            if control_mode == BatControlMode.SELF_REGULATION.value:
                 return True
-            else:
-                return False
+            if control_mode == BatControlMode.FORCE_CHARGE_BELOW_PRICE.value:
+                return data.data.optional_data.ep_is_charging_allowed_price_threshold(self.data.config.charge_limit)
+            if control_mode == BatControlMode.BLOCK_DISCHARGE_ABOVE_PRICE.value:
+                return data.data.optional_data.ep_is_charging_allowed_price_threshold(self.data.config.price_limit)
+            # jeder andere aktive Modus (Fahrzeugladung, Entladesperre, Manuell, Ladeleistung
+            # begrenzen, PeakShaving) kann den Speicher jederzeit beanspruchen
+            return False
         return True
 
 

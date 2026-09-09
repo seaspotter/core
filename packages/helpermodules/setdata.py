@@ -670,11 +670,9 @@ class SetData:
             enthält Topic und Payload
         """
         try:
-            if ("openWB/set/bat/config/bat_control_activated" in msg.topic or
-                "openWB/set/bat/config/price_limit_activated" in msg.topic or
-                "openWB/set/bat/config/price_charge_activated" in msg.topic or
-                "openWB/set/bat/config/configured" in msg.topic or
+            if ("openWB/set/bat/config/configured" in msg.topic or
                 "openWB/set/bat/get/power_limit_controllable" in msg.topic or
+                "openWB/set/bat/get/charge_power_limit_controllable" in msg.topic or
                     "openWB/set/bat/set/regulate_up" in msg.topic or
                     "openWB/set/bat/set/hysteresis_discharge" in msg.topic):
                 self._validate_value(msg, bool)
@@ -697,7 +695,8 @@ class SetData:
             elif "openWB/set/bat/get/soc" in msg.topic:
                 self._validate_value(msg, float, [(0, 100)])
             elif ("openWB/set/bat/get/power" in msg.topic or
-                    "openWB/set/bat/set/power_limit" in msg.topic):
+                    "openWB/set/bat/set/power_limit" in msg.topic or
+                    "openWB/set/bat/set/charge_power_limit" in msg.topic):
                 self._validate_value(msg, float)
             elif ("openWB/set/bat/get/imported" in msg.topic or
                     "openWB/set/bat/get/exported" in msg.topic or
@@ -728,9 +727,10 @@ class SetData:
                 elif ("/get/fault_str" in msg.topic or
                       "/get/serial_number" in msg.topic):
                     self._validate_value(msg, str)
-                elif "/set/power_limit_controllable" in msg.topic:
+                elif ("/set/power_limit_controllable" in msg.topic or
+                      "/set/charge_power_limit_controllable" in msg.topic):
                     self._validate_value(msg, bool)
-                elif "/set/power_limit" in msg.topic:
+                elif "/set/power_limit" in msg.topic or "/set/charge_power_limit" in msg.topic:
                     self._validate_value(msg, float)
                 else:
                     self.__unknown_topic(msg)
