@@ -40,9 +40,9 @@ class BatConsiderationMode(Enum):
 
 class BatControlMode(Enum):
     SELF_REGULATION = "self_regulation"
-    HOME_CONSUMPTION_ONLY_WHILE_VEHICLE_CHARGING = "home_consumption_only_while_vehicle_charging"
+    HOME_CONSUMPTION_WHILE_CHARGING = "home_consumption_while_charging"
     BLOCK_DISCHARGE = "block_discharge"
-    KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING = "keep_pv_yield_while_vehicle_charging"
+    PV_YIELD_WHILE_CHARGING = "pv_yield_while_charging"
     FORCE_CHARGE_BELOW_PRICE = "force_charge_below_price"
     BLOCK_DISCHARGE_ABOVE_PRICE = "block_discharge_above_price"
     MANUAL = "manual"
@@ -367,7 +367,7 @@ class BatAll:
                 # Speicher sollte weder ge- noch entladen werden.
                 # wenn aktive Speichersteuerung in Höhe PV-Leistung lädt
                 # hat Speicher Priorität vor EV-Ladung
-                if self.data.config.control_mode == BatControlMode.KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING.value:
+                if self.data.config.control_mode == BatControlMode.PV_YIELD_WHILE_CHARGING.value:
                     charging_power_left = 0
                 else:
                     charging_power_left = self.data.get.power
@@ -405,7 +405,7 @@ class BatAll:
                         if self.data.set.power_limit is None:
                             # set allowed power
                             if (self.data.config.control_mode ==
-                                    BatControlMode.KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING.value):
+                                    BatControlMode.PV_YIELD_WHILE_CHARGING.value):
                                 base_power = 0
                             else:
                                 base_power = self.data.get.power
@@ -443,7 +443,7 @@ class BatAll:
                     self.data.set.hysteresis_discharge = True
                     if self.data.set.power_limit is None:
                         # set allowed power
-                        if self.data.config.control_mode == BatControlMode.KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING.value:
+                        if self.data.config.control_mode == BatControlMode.PV_YIELD_WHILE_CHARGING.value:
                             base_power = 0
                         else:
                             base_power = self.data.get.power
@@ -529,7 +529,7 @@ class BatAll:
     def _vehicle_charging_power_limit(self) -> Optional[float]:
         chargepoint_by_chargemodes = get_chargepoints_with_required_current_by_chargemode(
             CONSIDERED_CHARGE_MODES_CHARGING)
-        keep_pv_yield = self.data.config.control_mode == BatControlMode.KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING.value
+        keep_pv_yield = self.data.config.control_mode == BatControlMode.PV_YIELD_WHILE_CHARGING.value
         # Fahrzeuge laden
         vehicle_charging = (len(chargepoint_by_chargemodes) > 0 and
                             data.data.cp_all_data.data.get.power > 100)
@@ -627,8 +627,8 @@ class BatAll:
                 log.debug("Speicher-Leistung nicht begrenzen, da keine regelbaren Speicher vorhanden sind.")
             elif control_mode == BatControlMode.SELF_REGULATION.value:
                 log.debug("Speicher-Leistung nicht begrenzen, da Eigenregelung gewählt ist.")
-        elif control_mode in (BatControlMode.HOME_CONSUMPTION_ONLY_WHILE_VEHICLE_CHARGING.value,
-                              BatControlMode.KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING.value):
+        elif control_mode in (BatControlMode.HOME_CONSUMPTION_WHILE_CHARGING.value,
+                              BatControlMode.PV_YIELD_WHILE_CHARGING.value):
             log.debug("Aktive Speichersteuerung: Wenn Fahrzeuge laden.")
             power_limit = self._vehicle_charging_power_limit()
         elif control_mode == BatControlMode.FORCE_CHARGE_BELOW_PRICE.value:
@@ -675,16 +675,16 @@ class BatAll:
     def _use_limit_power(self) -> float:
         """Leistungsvorgabe für eine Entlade-Begrenzung, abhängig vom control_mode.
 
-        HOME_CONSUMPTION_ONLY_WHILE_VEHICLE_CHARGING und KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING
+        HOME_CONSUMPTION_WHILE_CHARGING und PV_YIELD_WHILE_CHARGING
         werden nur erreicht, nachdem _vehicle_charging_power_limit() Fahrzeugladung als
         Bedingung bereits geprüft hat. Alle übrigen Fälle (BLOCK_DISCHARGE,
         BLOCK_DISCHARGE_ABOVE_PRICE, MANUAL+Stop) sperren die Entladung vollständig.
         """
         control_mode = self.data.config.control_mode
-        if control_mode == BatControlMode.HOME_CONSUMPTION_ONLY_WHILE_VEHICLE_CHARGING.value:
+        if control_mode == BatControlMode.HOME_CONSUMPTION_WHILE_CHARGING.value:
             power_limit = data.data.counter_all_data.data.set.home_consumption * -1
             log.debug(f"Speicher-Leistung begrenzen auf {power_limit/1000}kW")
-        elif control_mode == BatControlMode.KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING.value:
+        elif control_mode == BatControlMode.PV_YIELD_WHILE_CHARGING.value:
             # PV-Überschuss abzüglich Hausverbrauch als Ladeleistung des Speichers nutzen.
             # Bei geringem Überschuss wird Hausverbrauch durch Speicher ausgeglichen
             pv_power = min(data.data.pv_all_data.data.get.power, 0)

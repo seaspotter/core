@@ -3604,8 +3604,8 @@ class UpdateConfig:
                         updated_topics["openWB/bat/config/control_mode"] = "block_discharge"
                 elif condition == "vehicle_charging":
                     updated_topics["openWB/bat/config/control_mode"] = {
-                        "mode_discharge_home_consumption": "home_consumption_only_while_vehicle_charging",
-                        "mode_charge_pv_production": "keep_pv_yield_while_vehicle_charging",
+                        "mode_discharge_home_consumption": "home_consumption_while_charging",
+                        "mode_charge_pv_production": "pv_yield_while_charging",
                     }.get(mode, "block_discharge")
                 else:
                     # price_limit
