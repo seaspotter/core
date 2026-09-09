@@ -87,6 +87,101 @@ def test_upgrade_datastore_124_adds_missing_odometer_pattern_for_json_soc_module
     assert "odometer_pattern" not in ha_config
 
 
+def test_upgrade_datastore_141_replaces_manual_charge_with_force_charge_mode():
+    update_con = UpdateConfig()
+    update_con.all_received_topics = {
+        "openWB/system/datastore_version": list(range(141)),
+        "openWB/bat/config/manual_mode": "manual_charge",
+        "openWB/bat/config/power_limit_condition": "manual",
+        "openWB/bat/config/power_limit_mode": "mode_no_discharge",
+    }
+
+    update_con.upgrade_datastore_141()
+
+    assert "openWB/bat/config/manual_mode" not in update_con.all_received_topics
+    assert update_con.all_received_topics["openWB/bat/config/power_limit_mode"] == "mode_force_charge"
+
+
+def test_upgrade_datastore_141_ignores_manual_charge_outside_manual_condition():
+    # manual_charge war ueber die UI nur bei Bedingung "manual" waehlbar; ein evtl. stehen
+    # gebliebener Wert bei "vehicle_charging" darf keine Ladung erzwingen.
+    update_con = UpdateConfig()
+    update_con.all_received_topics = {
+        "openWB/system/datastore_version": list(range(141)),
+        "openWB/bat/config/manual_mode": "manual_charge",
+        "openWB/bat/config/power_limit_condition": "vehicle_charging",
+        "openWB/bat/config/power_limit_mode": "mode_no_discharge",
+    }
+
+    update_con.upgrade_datastore_141()
+
+    assert "openWB/bat/config/manual_mode" not in update_con.all_received_topics
+    assert update_con.all_received_topics["openWB/bat/config/power_limit_mode"] == "mode_no_discharge"
+
+
+def test_upgrade_datastore_141_drops_manual_mode_without_touching_other_modes():
+    update_con = UpdateConfig()
+    update_con.all_received_topics = {
+        "openWB/system/datastore_version": list(range(141)),
+        "openWB/bat/config/manual_mode": "manual_limit",
+        "openWB/bat/config/power_limit_condition": "manual",
+        "openWB/bat/config/power_limit_mode": "mode_charge_pv_production",
+    }
+
+    update_con.upgrade_datastore_141()
+
+    assert "openWB/bat/config/manual_mode" not in update_con.all_received_topics
+    assert update_con.all_received_topics["openWB/bat/config/power_limit_mode"] == "mode_charge_pv_production"
+
+
+@pytest.mark.parametrize("condition, mode, expected_control_mode", [
+    pytest.param("vehicle_charging", "mode_no_discharge",
+                 "block_discharge_while_vehicle_charging", id="vehicle_charging + no_discharge"),
+    pytest.param("vehicle_charging", "mode_discharge_home_consumption",
+                 "home_consumption_only_while_vehicle_charging", id="vehicle_charging + discharge_home_consumption"),
+    pytest.param("vehicle_charging", "mode_charge_pv_production",
+                 "keep_pv_yield_while_vehicle_charging", id="vehicle_charging + charge_pv_production"),
+    pytest.param("manual", "mode_force_charge", "force_charge", id="manual + force_charge"),
+    pytest.param("manual", "mode_no_discharge", "block_discharge",
+                 id="manual + no_discharge -> block_discharge (konservativste Naeherung)"),
+    pytest.param("manual", "mode_discharge_home_consumption", "block_discharge",
+                 id="manual + discharge_home_consumption (dauerhaft) -> block_discharge, keine 1:1-Entsprechung mehr"),
+    pytest.param("manual", "mode_charge_pv_production", "block_discharge",
+                 id="manual + charge_pv_production (dauerhaft) -> block_discharge, keine 1:1-Entsprechung mehr"),
+    pytest.param("price_limit", "mode_no_discharge", "price_based",
+                 id="price_limit -> price_based, egal welcher Modus"),
+    pytest.param("price_limit", "mode_charge_pv_production", "price_based",
+                 id="price_limit + charge_pv_production -> price_based (Regelmodus oberhalb der Grenze entfaellt)"),
+])
+def test_upgrade_datastore_142_merges_condition_and_mode_into_control_mode(
+        condition, mode, expected_control_mode):
+    update_con = UpdateConfig()
+    update_con.all_received_topics = {
+        "openWB/system/datastore_version": list(range(142)),
+        "openWB/bat/config/power_limit_condition": condition,
+        "openWB/bat/config/power_limit_mode": mode,
+    }
+
+    update_con.upgrade_datastore_142()
+
+    assert "openWB/bat/config/power_limit_condition" not in update_con.all_received_topics
+    assert "openWB/bat/config/power_limit_mode" not in update_con.all_received_topics
+    assert update_con.all_received_topics["openWB/bat/config/control_mode"] == expected_control_mode
+
+
+def test_upgrade_datastore_142_defaults_missing_mode_to_no_discharge():
+    update_con = UpdateConfig()
+    update_con.all_received_topics = {
+        "openWB/system/datastore_version": list(range(142)),
+        "openWB/bat/config/power_limit_condition": "vehicle_charging",
+    }
+
+    update_con.upgrade_datastore_142()
+
+    assert update_con.all_received_topics["openWB/bat/config/control_mode"] == (
+        "block_discharge_while_vehicle_charging")
+
+
 @pytest.mark.parametrize("name", [
     "happy_path",
     "missing_prices_dict",

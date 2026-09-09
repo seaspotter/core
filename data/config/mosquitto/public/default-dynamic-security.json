@@ -1202,19 +1202,19 @@
 				},
 				{
 					"acltype": "publishClientSend",
-					"topic": "openWB/set/bat/config/manual_mode",
+					"topic": "openWB/set/bat/config/control_mode",
 					"priority": 0,
 					"allow": true
 				},
 				{
 					"acltype": "publishClientSend",
-					"topic": "openWB/set/bat/config/power_limit_condition",
+					"topic": "openWB/set/bat/config/manual_power",
 					"priority": 0,
 					"allow": true
 				},
 				{
 					"acltype": "publishClientSend",
-					"topic": "openWB/set/bat/config/power_limit_mode",
+					"topic": "openWB/set/bat/config/charge_power_limit",
 					"priority": 0,
 					"allow": true
 				},
@@ -1304,6 +1304,12 @@
 				},
 				{
 					"acltype": "publishClientReceive",
+					"topic": "openWB/bat/+/get/charge_power_limit_controllable",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientReceive",
 					"topic": "openWB/bat/config/bat_control_activated",
 					"priority": 0,
 					"allow": true
@@ -1328,19 +1334,19 @@
 				},
 				{
 					"acltype": "publishClientReceive",
-					"topic": "openWB/bat/config/manual_mode",
+					"topic": "openWB/bat/config/control_mode",
 					"priority": 0,
 					"allow": true
 				},
 				{
 					"acltype": "publishClientReceive",
-					"topic": "openWB/bat/config/power_limit_condition",
+					"topic": "openWB/bat/config/manual_power",
 					"priority": 0,
 					"allow": true
 				},
 				{
 					"acltype": "publishClientReceive",
-					"topic": "openWB/bat/config/power_limit_mode",
+					"topic": "openWB/bat/config/charge_power_limit",
 					"priority": 0,
 					"allow": true
 				},
@@ -1365,6 +1371,12 @@
 				{
 					"acltype": "publishClientReceive",
 					"topic": "openWB/bat/get/power_limit_controllable",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientReceive",
+					"topic": "openWB/bat/get/charge_power_limit_controllable",
 					"priority": 0,
 					"allow": true
 				},

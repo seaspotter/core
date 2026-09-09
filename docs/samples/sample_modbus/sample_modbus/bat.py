@@ -80,15 +80,31 @@ class SampleBat(AbstractBat):
         self.store.set(bat_state)
 
     def set_power_limit(self, power_limit: Optional[int]) -> None:
-        # Wenn der Speicher die Steuerung der Ladeleistung unterstützt, muss bei Übergabe einer Zahl auf aktive
-        # Speichersteurung umgeschaltet werden, sodass der Speicher mit der übergebenen Leistung lädt/entlädt. Wird
-        # None übergeben, muss der Speicher die Null-Punkt-Ausregelung selbst übernehmen.
+        # Trotz des Namens keine Begrenzung, sondern eine exakte Vorgabe: Wenn der Speicher die
+        # Steuerung der Ladeleistung unterstützt, muss bei Übergabe einer Zahl auf aktive
+        # Speichersteurung umgeschaltet werden, sodass der Speicher mit der übergebenen Leistung
+        # lädt/entlädt (positiv = laden, negativ = entladen, 0 = weder noch). Wird None übergeben,
+        # muss der Speicher die Null-Punkt-Ausregelung selbst übernehmen (Eigenregelung).
         self.client.write_register(reg, power_limit)
         # Wenn der Speicher keine Steuerung der Ladeleistung unterstützt
         pass
 
     def power_limit_controllable(self) -> bool:
         # Wenn der Speicher die Steuerung der Ladeleistung unterstützt, muss True zurückgegeben werden.
+        return True
+
+    def set_charge_power_limit(self, charge_power_limit: Optional[int]) -> None:
+        # Anders als set_power_limit: eine echte Obergrenze, keine exakte Vorgabe. Der Speicher
+        # bleibt dabei in Eigenregelung (Entladung, Timing etc. werden nicht vorgegeben) - es wird
+        # nur verhindert, dass mit mehr als der übergebenen Leistung geladen wird. Nur relevant,
+        # wenn der Speicher ein eigenes Register/eine eigene Funktion dafür hat, die unabhängig von
+        # set_power_limit ist (z.B. weil er keine bidirektionale exakte Vorgabe unterstützt). Wird
+        # None übergeben, entfällt die Begrenzung.
+        self.client.write_register(reg, charge_power_limit)
+
+    def charge_power_limit_controllable(self) -> bool:
+        # Wenn der Speicher eine reine Ladeleistungsbegrenzung unterstützt, muss True
+        # zurückgegeben werden - unabhängig davon, ob power_limit_controllable() auch True ist.
         return True
 
 

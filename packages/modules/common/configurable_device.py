@@ -136,3 +136,11 @@ def set_power_limit_wrapper(bat_component: AbstractBat, power_limit: Optional[in
     """
     with SingleComponentUpdateContext(bat_component.fault_state, update_always=False):
         bat_component.set_power_limit(power_limit)
+
+
+def set_charge_power_limit_wrapper(bat_component: AbstractBat, charge_power_limit: Optional[int]):
+    """set_charge_power_limit innerhalb des SingleComponentUpdateContext aufrufen,
+    damit Fehler im fault_state-Handler behandelt werden
+    """
+    with SingleComponentUpdateContext(bat_component.fault_state, update_always=False):
+        bat_component.set_charge_power_limit(charge_power_limit)

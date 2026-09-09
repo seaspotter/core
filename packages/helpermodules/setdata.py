@@ -707,9 +707,7 @@ class SetData:
             elif "openWB/set/bat/get/fault_state" in msg.topic:
                 self._validate_value(msg, int, [(0, 2)])
             elif ("openWB/set/bat/get/fault_str" in msg.topic or
-                  "openWB/set/bat/config/power_limit_mode" in msg.topic or
-                  "openWB/set/bat/config/power_limit_condition" in msg.topic or
-                  "openWB/set/bat/config/manual_mode" in msg.topic):
+                  "openWB/set/bat/config/control_mode" in msg.topic):
                 self._validate_value(msg, str)
             elif "/config" in msg.topic:
                 self._validate_value(msg, "json")

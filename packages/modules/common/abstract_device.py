@@ -38,6 +38,14 @@ class AbstractBat:
     def power_limit_controllable(self) -> bool:
         return False
 
+    def set_charge_power_limit(self, charge_power_limit: Optional[int]) -> None:
+        # Obergrenze für die Ladeleistung in W; der Speicher bleibt ansonsten in Eigenregelung
+        # (Entladung, Timing etc. werden nicht vorgegeben). None = keine Begrenzung.
+        pass
+
+    def charge_power_limit_controllable(self) -> bool:
+        return False
+
 
 class AbstractCounter:
     @abstractmethod

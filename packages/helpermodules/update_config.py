@@ -58,15 +58,15 @@ NO_MODULE = {"type": None, "configuration": {}}
 
 class UpdateConfig:
 
-    DATASTORE_VERSION = 140
+    DATASTORE_VERSION = 142
 
     valid_topic = [
         "^openWB/bat/config/bat_control_activated$",
-        "^openWB/bat/config/power_limit_mode$",
-        "^openWB/bat/config/power_limit_condition$",
+        "^openWB/bat/config/control_mode$",
+        "^openWB/bat/config/manual_power$",
+        "^openWB/bat/config/charge_power_limit$",
         "^openWB/bat/config/bat_control_min_soc$",
         "^openWB/bat/config/bat_control_max_soc$",
-        "^openWB/bat/config/manual_mode$",
         "^openWB/bat/config/price_limit_activated$",
         "^openWB/bat/config/price_limit$",
         "^openWB/bat/config/price_charge_activated$",
@@ -82,6 +82,7 @@ class UpdateConfig:
         "^openWB/bat/get/fault_state$",
         "^openWB/bat/get/fault_str$",
         "^openWB/bat/get/power_limit_controllable$",
+        "^openWB/bat/get/charge_power_limit_controllable$",
         "^openWB/bat/get/soc$",
         "^openWB/bat/get/power$",
         "^openWB/bat/get/imported$",
@@ -97,7 +98,9 @@ class UpdateConfig:
         "^openWB/bat/[0-9]+/get/fault_state$",
         "^openWB/bat/[0-9]+/get/fault_str$",
         "^openWB/bat/[0-9]+/get/power_limit_controllable$",
+        "^openWB/bat/[0-9]+/get/charge_power_limit_controllable$",
         "^openWB/bat/[0-9]+/set/power_limit$",
+        "^openWB/bat/[0-9]+/set/charge_power_limit$",
 
         "^openWB/chargepoint/get/power$",
         "^openWB/chargepoint/get/exported$",
@@ -572,11 +575,11 @@ class UpdateConfig:
     ]
     default_topic = (
         ("openWB/bat/config/bat_control_activated", False),
-        ("openWB/bat/config/power_limit_mode", "mode_no_discharge"),
-        ("openWB/bat/config/power_limit_condition", "vehicle_charging"),
+        ("openWB/bat/config/control_mode", "block_discharge_while_vehicle_charging"),
+        ("openWB/bat/config/manual_power", None),
+        ("openWB/bat/config/charge_power_limit", None),
         ("openWB/bat/config/bat_control_min_soc", 5),
         ("openWB/bat/config/bat_control_max_soc", 90),
-        ("openWB/bat/config/manual_mode", "manual_disable"),
         ("openWB/bat/config/price_limit_activated", False),
         ("openWB/bat/config/price_limit", 0.3),
         ("openWB/bat/config/price_charge_activated", False),
@@ -3554,3 +3557,58 @@ class UpdateConfig:
             return None
         self._loop_all_received_topics(upgrade)
         self._append_datastore_version(140)
+
+    def upgrade_datastore_141(self) -> None:
+        def upgrade(topic: str, payload) -> Optional[dict]:
+            # manual_mode wird durch bat_control_preset (power_limit_mode um MODE_FORCE_CHARGE
+            # erweitert) ersetzt. manual_charge nur dann uebernehmen, wenn es auch tatsaechlich
+            # ueber die Bedingung "manual" erreichbar war - bei "vehicle_charging" war der Wert
+            # in der UI nie waehlbar (Button deaktiviert) und darf keine Ladung erzwingen.
+            if topic == "openWB/bat/config/manual_mode":
+                manual_mode = decode_payload(payload)
+                condition = decode_payload(self.all_received_topics.get(
+                    "openWB/bat/config/power_limit_condition", '"manual"'))
+                if manual_mode == "manual_charge" and condition == "manual":
+                    return {"openWB/bat/config/power_limit_mode": "mode_force_charge",
+                            "openWB/bat/config/manual_mode": ""}
+                return {"openWB/bat/config/manual_mode": ""}
+            return None
+        self._loop_all_received_topics(upgrade)
+        self._append_datastore_version(141)
+
+    def upgrade_datastore_142(self) -> None:
+        def upgrade(topic: str, payload) -> Optional[dict]:
+            # power_limit_condition + power_limit_mode werden durch ein einzelnes Auswahlfeld
+            # control_mode ersetzt (ein Regelbedingung/Regelmodus-Paar statt zwei verschachtelter
+            # Auswahlfelder). "manual" + {no_discharge, discharge_home_consumption,
+            # charge_pv_production} (dauerhaft, nicht an Fahrzeugladung gekoppelt) hat keine
+            # 1:1-Entsprechung mehr - Entladesperre ist hier die konservativste Naeherung
+            # (keine ungewollte Entladung), statt die aktive Steuerung stillschweigend zu
+            # deaktivieren.
+            if topic == "openWB/bat/config/power_limit_condition":
+                condition = decode_payload(payload)
+                mode = decode_payload(self.all_received_topics.get(
+                    "openWB/bat/config/power_limit_mode", '"mode_no_discharge"'))
+                if condition == "vehicle_charging":
+                    control_mode = {
+                        "mode_no_discharge": "block_discharge_while_vehicle_charging",
+                        "mode_discharge_home_consumption": "home_consumption_only_while_vehicle_charging",
+                        "mode_charge_pv_production": "keep_pv_yield_while_vehicle_charging",
+                    }.get(mode, "block_discharge_while_vehicle_charging")
+                elif condition == "manual":
+                    control_mode = "force_charge" if mode == "mode_force_charge" else "block_discharge"
+                else:
+                    control_mode = "price_based"
+                updated_topics = {"openWB/bat/config/control_mode": control_mode,
+                                  "openWB/bat/config/power_limit_condition": ""}
+                if "openWB/bat/config/power_limit_mode" in self.all_received_topics:
+                    updated_topics["openWB/bat/config/power_limit_mode"] = ""
+                return updated_topics
+            elif topic == "openWB/bat/config/power_limit_mode":
+                # wird oben zusammen mit power_limit_condition verarbeitet; falls
+                # power_limit_condition aus irgendeinem Grund fehlt, hier trotzdem aufraeumen.
+                if "openWB/bat/config/power_limit_condition" not in self.all_received_topics:
+                    return {"openWB/bat/config/power_limit_mode": ""}
+            return None
+        self._loop_all_received_topics(upgrade)
+        self._append_datastore_version(142)

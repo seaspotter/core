@@ -6,12 +6,14 @@ from packages.conftest import hierarchy_standard
 from control import bat_all
 from control.bat import Bat
 
-from control.bat_all import BatAll, BatConsiderationMode, BatPowerLimitMode, BatPowerLimitCondition, ManualMode
+from control.bat_all import BatAll, BatConsiderationMode, BatControlMode
 from control import data
 from control.chargepoint.chargepoint import Chargepoint
 from control.chargepoint.chargepoint_all import AllChargepointData, AllChargepoints, AllGet
 from control.general import General, PvCharging
 from control.pv import Config, Get, Pv, PvData
+from modules.common.abstract_device import AbstractDevice
+from modules.common.fault_state import ComponentInfo, FaultState
 from modules.devices.generic.mqtt.bat import MqttBat
 from modules.devices.generic.mqtt.config import MqttBatSetup
 
@@ -232,9 +234,8 @@ def default_chargepoint_factory() -> List[Chargepoint]:
 class BatControlParams:
     name: str
     expected_power_limit_bat: Optional[float]
-    power_limit_mode: str = BatPowerLimitMode.MODE_NO_DISCHARGE.value
-    power_limit_condition: str = BatPowerLimitCondition.VEHICLE_CHARGING.value
-    bat_manual_mode: str = ManualMode.MANUAL_DISABLE.value
+    control_mode: str = BatControlMode.BLOCK_DISCHARGE_WHILE_VEHICLE_CHARGING.value
+    manual_power: Optional[int] = None
     cps: List[Chargepoint] = field(default_factory=default_chargepoint_factory)
     power_limit_controllable: bool = True
     bat_power: float = -10
@@ -254,43 +255,31 @@ class BatControlParams:
 
 
 cases = [
-    BatControlParams("Speicher nicht regelbar", None, power_limit_controllable=False,
-                     power_limit_mode=BatPowerLimitMode.MODE_NO_DISCHARGE.value),
-    BatControlParams("Speichersteuerung deaktiviert", None, bat_control_activated=False,
-                     power_limit_mode=BatPowerLimitMode.MODE_NO_DISCHARGE.value),
-    # Manuelle Steuerung
+    BatControlParams("Speicher nicht regelbar", None, power_limit_controllable=False),
+    BatControlParams("Speichersteuerung deaktiviert", None, bat_control_activated=False),
+    # Manuelle Steuerung (dauerhaft, unabhaengig von Fahrzeugladung)
     BatControlParams("Manuelle Steuerung, Speichersteuerung deaktiviert", None,
-                     power_limit_condition=BatPowerLimitCondition.MANUAL.value,
-                     bat_manual_mode=ManualMode.MANUAL_DISABLE.value),
+                     control_mode=BatControlMode.BLOCK_DISCHARGE.value,
+                     bat_control_activated=False),
     BatControlParams("Manuelle Steuerung, Entladung sperren", 0,
-                     power_limit_condition=BatPowerLimitCondition.MANUAL.value,
-                     bat_manual_mode=ManualMode.MANUAL_LIMIT.value),
-    BatControlParams("Manuelle Steuerung, Begrenzung Hausverbrauch", -456,
-                     power_limit_condition=BatPowerLimitCondition.MANUAL.value,
-                     bat_manual_mode=ManualMode.MANUAL_LIMIT.value,
-                     power_limit_mode=BatPowerLimitMode.MODE_DISCHARGE_HOME_CONSUMPTION.value),
-    BatControlParams("Manuelle Steuerung, Ladung PV Überschuss", 198,
-                     power_limit_condition=BatPowerLimitCondition.MANUAL.value,
-                     bat_manual_mode=ManualMode.MANUAL_LIMIT.value,
-                     power_limit_mode=BatPowerLimitMode.MODE_CHARGE_PV_PRODUCTION.value),
-    BatControlParams("Manuelle Steuerung, Aktive Ladung", 5000,
-                     power_limit_condition=BatPowerLimitCondition.MANUAL.value,
-                     bat_manual_mode=ManualMode.MANUAL_CHARGE.value),
+                     control_mode=BatControlMode.BLOCK_DISCHARGE.value),
+    BatControlParams("Manuelle Steuerung, Aktive Ladung, ohne Vorgabe -> maximale Leistung", 5000,
+                     control_mode=BatControlMode.FORCE_CHARGE.value),
+    BatControlParams("Manuelle Steuerung, Aktive Ladung, mit Leistungsvorgabe", 3000,
+                     control_mode=BatControlMode.FORCE_CHARGE.value, manual_power=3000),
+    BatControlParams("Manuelle Steuerung, Aktive Ladung, Vorgabe über Maximum gekappt", 5000,
+                     control_mode=BatControlMode.FORCE_CHARGE.value, manual_power=8000),
     # Wenn Fahrzeuge Laden
-    BatControlParams("Fahrzeuge laden, Begrenzung immer, keine LP im Sofortladen", None, cps=[],
-                     power_limit_mode=BatPowerLimitMode.MODE_NO_DISCHARGE.value),
-    BatControlParams("Fahrzeuge laden, Begrenzung immer, Speicher lädt", None, bat_power=100,
-                     power_limit_mode=BatPowerLimitMode.MODE_NO_DISCHARGE.value),
-    BatControlParams("Fahrzeuge laden, Begrenzung immer,Einspeisung", None, evu_power=-110,
-                     power_limit_mode=BatPowerLimitMode.MODE_NO_DISCHARGE.value),
-    BatControlParams("Fahrzeuge laden, Begrenzung immer", 0,
-                     power_limit_mode=BatPowerLimitMode.MODE_NO_DISCHARGE.value),
+    BatControlParams("Fahrzeuge laden, Begrenzung immer, keine LP im Sofortladen", None, cps=[]),
+    BatControlParams("Fahrzeuge laden, Begrenzung immer, Speicher lädt", None, bat_power=100),
+    BatControlParams("Fahrzeuge laden, Begrenzung immer,Einspeisung", None, evu_power=-110),
+    BatControlParams("Fahrzeuge laden, Begrenzung immer", 0),
     BatControlParams("Fahrzeuge laden, Begrenzung Hausverbrauch", -456,
-                     power_limit_mode=BatPowerLimitMode.MODE_DISCHARGE_HOME_CONSUMPTION.value),
+                     control_mode=BatControlMode.HOME_CONSUMPTION_ONLY_WHILE_VEHICLE_CHARGING.value),
     BatControlParams("Fahrzeuge laden, Ladung PV Überschuss", 198,
-                     power_limit_mode=BatPowerLimitMode.MODE_CHARGE_PV_PRODUCTION.value),
+                     control_mode=BatControlMode.KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING.value),
     BatControlParams("Fahrzeuge laden, Ladung PV Überschuss, Eigenverbrauch PV-Anlage", -456,
-                     power_limit_mode=BatPowerLimitMode.MODE_CHARGE_PV_PRODUCTION.value,
+                     control_mode=BatControlMode.KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING.value,
                      pv_power=100),
 ]
 
@@ -299,9 +288,8 @@ cases = [
 def test_active_bat_control(params: BatControlParams, data_, monkeypatch):
     b_all = BatAll()
     b_all.data.config.bat_control_activated = params.bat_control_activated
-    b_all.data.config.power_limit_mode = params.power_limit_mode
-    b_all.data.config.power_limit_condition = params.power_limit_condition
-    b_all.data.config.manual_mode = params.bat_manual_mode
+    b_all.data.config.control_mode = params.control_mode
+    b_all.data.config.manual_power = params.manual_power
     b_all.data.get.power_limit_controllable = params.power_limit_controllable
     b_all.data.config.bat_control_min_soc = params.bat_control_min_soc
     b_all.data.config.bat_control_max_soc = params.bat_control_max_soc
@@ -338,38 +326,33 @@ def test_active_bat_control(params: BatControlParams, data_, monkeypatch):
 
 
 cases = [
-    # Nach Preisgrenze
+    # Nach Preisgrenze - der Regelmodus oberhalb der Preisgrenze ist fest auf Entladesperre
+    # gesetzt (kein waehlbarer Regelmodus mehr, siehe control_mode-Vereinfachung); ein bisher
+    # ueber PRICE_LIMIT + MODE_CHARGE_PV_PRODUCTION erreichbares "PV-Ertrag speichern nur bei
+    # guenstigem Preis" gibt es dadurch nicht mehr - siehe "Grenze unterschritten" unten.
     BatControlParams("Preisgrenze, Grenze deaktiviert, Eigenregelung", None,
-                     power_limit_condition=BatPowerLimitCondition.PRICE_LIMIT.value,
+                     control_mode=BatControlMode.PRICE_BASED.value,
                      price_limit_activated=False,
-                     price_limit=0.40,
-                     power_limit_mode=BatPowerLimitMode.MODE_NO_DISCHARGE.value),
+                     price_limit=0.40),
     BatControlParams("Preisgrenze, Entladung sperren, Grenze unterschritten", 0,
-                     power_limit_condition=BatPowerLimitCondition.PRICE_LIMIT.value,
+                     control_mode=BatControlMode.PRICE_BASED.value,
                      price_limit_activated=True,
-                     price_limit=0.30,
-                     power_limit_mode=BatPowerLimitMode.MODE_NO_DISCHARGE.value),
-    BatControlParams("Preisgrenze, Überschuss Laden, Grenze unterschritten", 198,
-                     power_limit_condition=BatPowerLimitCondition.PRICE_LIMIT.value,
-                     price_limit_activated=True,
-                     price_limit=0.30,
-                     power_limit_mode=BatPowerLimitMode.MODE_CHARGE_PV_PRODUCTION.value),
+                     price_limit=0.30),
     BatControlParams("Preisgrenze, Entladung sperren, Grenze greift nicht", None,
-                     power_limit_condition=BatPowerLimitCondition.PRICE_LIMIT.value,
+                     control_mode=BatControlMode.PRICE_BASED.value,
                      price_limit_activated=True,
-                     price_limit=0.10,
-                     power_limit_mode=BatPowerLimitMode.MODE_NO_DISCHARGE.value),
+                     price_limit=0.10),
     # Aktive Ladung
     BatControlParams("Preisgrenze, Grenze deaktiviert, Eigenregelung", None,
-                     power_limit_condition=BatPowerLimitCondition.PRICE_LIMIT.value,
+                     control_mode=BatControlMode.PRICE_BASED.value,
                      price_charge_activated=False,
                      charge_limit=0.40),
     BatControlParams("Preisgrenze, Grenze unterschritten, Ladung", 5000,
-                     power_limit_condition=BatPowerLimitCondition.PRICE_LIMIT.value,
+                     control_mode=BatControlMode.PRICE_BASED.value,
                      price_charge_activated=True,
                      charge_limit=0.30),
     BatControlParams("Preisgrenze, Grenze greift nicht, Eigenregelung", None,
-                     power_limit_condition=BatPowerLimitCondition.PRICE_LIMIT.value,
+                     control_mode=BatControlMode.PRICE_BASED.value,
                      price_charge_activated=True,
                      charge_limit=0.10),
 ]
@@ -380,9 +363,8 @@ def test_control_price_limit(params: BatControlParams, data_, monkeypatch):
     monkeypatch.setattr(data.data.optional_data, "ep_get_current_price", Mock(return_value=0.2))
     b_all = BatAll()
     b_all.data.config.bat_control_activated = params.bat_control_activated
-    b_all.data.config.power_limit_mode = params.power_limit_mode
-    b_all.data.config.power_limit_condition = params.power_limit_condition
-    b_all.data.config.manual_mode = params.bat_manual_mode
+    b_all.data.config.control_mode = params.control_mode
+    b_all.data.config.manual_power = params.manual_power
     b_all.data.get.power_limit_controllable = params.power_limit_controllable
     b_all.data.config.bat_control_min_soc = params.bat_control_min_soc
     b_all.data.config.bat_control_max_soc = params.bat_control_max_soc
@@ -420,68 +402,36 @@ def test_control_price_limit(params: BatControlParams, data_, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "control_activated, condition, limit, manual_mode, expected_result",
+    "control_activated, control_mode, expected_result",
     [
         pytest.param(False,
-                     BatPowerLimitCondition.MANUAL.value,
-                     BatPowerLimitMode.MODE_NO_DISCHARGE.value,
-                     ManualMode.MANUAL_DISABLE.value, True,
-                     id="Speichersteuerung nicht aktiviert, aber aktiviert -> laden"),
+                     BatControlMode.BLOCK_DISCHARGE_WHILE_VEHICLE_CHARGING.value, True,
+                     id="Speichersteuerung nicht aktiviert -> laden erlaubt"),
         pytest.param(True,
-                     BatPowerLimitCondition.MANUAL.value,
-                     BatPowerLimitMode.MODE_NO_DISCHARGE.value,
-                     ManualMode.MANUAL_DISABLE.value, True,
-                     id="Manuell, Eigenregelung, volle Entladesperre -> nicht laden"),
+                     BatControlMode.BLOCK_DISCHARGE.value, False,
+                     id="Manuell, Entladesperre -> nicht laden"),
         pytest.param(True,
-                     BatPowerLimitCondition.MANUAL.value,
-                     BatPowerLimitMode.MODE_DISCHARGE_HOME_CONSUMPTION.value,
-                     ManualMode.MANUAL_LIMIT.value, False,
-                     id="Manuell, Entladung in Fahrzeuge sperren -> nicht laden"),
+                     BatControlMode.FORCE_CHARGE.value, False,
+                     id="Manuell, Aktive Ladung -> nicht laden"),
         pytest.param(True,
-                     BatPowerLimitCondition.MANUAL.value,
-                     BatPowerLimitMode.MODE_CHARGE_PV_PRODUCTION.value,
-                     ManualMode.MANUAL_CHARGE.value, False,
-                     id="Manuell, PV-Ertrag speichern -> nicht laden"),
-        pytest.param(True,
-                     BatPowerLimitCondition.VEHICLE_CHARGING.value,
-                     BatPowerLimitMode.MODE_NO_DISCHARGE.value,
-                     ManualMode.MANUAL_DISABLE.value, False,
+                     BatControlMode.BLOCK_DISCHARGE_WHILE_VEHICLE_CHARGING.value, False,
                      id="Fahrzeuge laden, volle Entladesperre -> nicht laden"),
         pytest.param(True,
-                     BatPowerLimitCondition.VEHICLE_CHARGING.value,
-                     BatPowerLimitMode.MODE_DISCHARGE_HOME_CONSUMPTION.value,
-                     ManualMode.MANUAL_DISABLE.value, False,
+                     BatControlMode.HOME_CONSUMPTION_ONLY_WHILE_VEHICLE_CHARGING.value, False,
                      id="Fahrzeuge laden, Entladung in Fahrzeuge sperren -> nicht laden"),
         pytest.param(True,
-                     BatPowerLimitCondition.VEHICLE_CHARGING.value,
-                     BatPowerLimitMode.MODE_CHARGE_PV_PRODUCTION.value,
-                     ManualMode.MANUAL_DISABLE.value, False,
+                     BatControlMode.KEEP_PV_YIELD_WHILE_VEHICLE_CHARGING.value, False,
                      id="Fahrzeuge laden, PV-Ertrag speichern -> nicht laden"),
-        pytest.param(True,
-                     BatPowerLimitCondition.PRICE_LIMIT.value,
-                     BatPowerLimitMode.MODE_NO_DISCHARGE.value,
-                     ManualMode.MANUAL_DISABLE.value, False,
-                     id="Preislimit, volle Entladesperre -> nicht laden"),
-        pytest.param(True,
-                     BatPowerLimitCondition.PRICE_LIMIT.value,
-                     BatPowerLimitMode.MODE_DISCHARGE_HOME_CONSUMPTION.value,
-                     ManualMode.MANUAL_DISABLE.value, False,
-                     id="Preislimit, Entladung in Fahrzeuge sperren -> nicht laden"),
-
     ]
 )
 def test_time_charging_min_bat_soc_allowed(control_activated: bool,
-                                           condition: str,
-                                           limit: str,
-                                           manual_mode: str,
+                                           control_mode: str,
                                            expected_result: bool):
     # setup
     b = BatAll()
     b.data.config.configured = True
-    b.data.config.power_limit_condition = condition
-    b.data.config.power_limit_mode = limit
+    b.data.config.control_mode = control_mode
     b.data.config.bat_control_activated = control_activated
-    b.data.config.manual_mode = manual_mode
 
     # execution
     result = b.time_charging_min_bat_soc_allowed()
@@ -516,8 +466,7 @@ def test_time_charging_min_bat_soc_allowed_pricing(ep_configured: bool,
     # setup
     b = BatAll()
     b.data.config.configured = True
-    b.data.config.power_limit_condition = BatPowerLimitCondition.PRICE_LIMIT.value
-    b.data.config.power_limit_mode = BatPowerLimitMode.MODE_CHARGE_PV_PRODUCTION.value
+    b.data.config.control_mode = BatControlMode.PRICE_BASED.value
     b.data.config.price_limit_activated = price_limit_activated
     b.data.config.price_charge_activated = price_charge_activated
     data.data.optional_data.data.electricity_pricing.configured = ep_configured
@@ -531,3 +480,118 @@ def test_time_charging_min_bat_soc_allowed_pricing(ep_configured: bool,
 
     # evaluation
     assert result == expected_result
+
+
+def test_get_power_limit_limit_charge_power(data_, monkeypatch):
+    # LIMIT_CHARGE_POWER ist unabhängig von power_limit_controllable (bidirektionale Steuerung) -
+    # ein Speicher, der nur set_charge_power_limit unterstützt, muss diesen Modus trotzdem nutzen können.
+    b_all = BatAll()
+    b_all.data.config.bat_control_activated = True
+    b_all.data.config.control_mode = BatControlMode.LIMIT_CHARGE_POWER.value
+    b_all.data.config.charge_power_limit = 3000
+    b_all.data.get.power_limit_controllable = False
+    monkeypatch.setattr(bat_all, "get_bat_components_by_controllability", Mock(return_value=([], [])))
+
+    b_all.get_power_limit()
+
+    assert b_all.data.set.power_limit is None
+    assert b_all.data.set.charge_power_limit == 3000
+
+
+def test_get_power_limit_limit_charge_power_requires_activation(data_, monkeypatch):
+    b_all = BatAll()
+    b_all.data.config.bat_control_activated = False
+    b_all.data.config.control_mode = BatControlMode.LIMIT_CHARGE_POWER.value
+    b_all.data.config.charge_power_limit = 3000
+    monkeypatch.setattr(bat_all, "get_bat_components_by_controllability", Mock(return_value=([], [])))
+
+    b_all.get_power_limit()
+
+    assert b_all.data.set.charge_power_limit is None
+
+
+def test_get_power_limit_other_modes_leave_charge_power_limit_none(data_, monkeypatch):
+    b_all = BatAll()
+    b_all.data.config.bat_control_activated = True
+    b_all.data.config.control_mode = BatControlMode.BLOCK_DISCHARGE.value
+    b_all.data.config.charge_power_limit = 3000
+    b_all.data.get.power_limit_controllable = True
+    monkeypatch.setattr(bat_all, "get_bat_components_by_controllability", Mock(return_value=([], [])))
+
+    b_all.get_power_limit()
+
+    assert b_all.data.set.charge_power_limit is None
+
+
+def test_set_bat_charge_power_limit_caps_at_max_charge_power(data_, monkeypatch):
+    b_all = BatAll()
+    bat_component = MqttBat(MqttBatSetup(id=2), device_id=0)
+    data.data.bat_data["bat2"].data.get.max_charge_power = 5000
+    monkeypatch.setattr(bat_all, "get_bat_components_by_charge_power_controllability",
+                        Mock(return_value=([bat_component], [])))
+
+    b_all._set_bat_charge_power_limit(8000)
+
+    assert data.data.bat_data["bat2"].data.set.charge_power_limit == 5000
+
+
+def test_set_bat_charge_power_limit_passes_through_value_within_max(data_, monkeypatch):
+    b_all = BatAll()
+    bat_component = MqttBat(MqttBatSetup(id=2), device_id=0)
+    data.data.bat_data["bat2"].data.get.max_charge_power = 5000
+    monkeypatch.setattr(bat_all, "get_bat_components_by_charge_power_controllability",
+                        Mock(return_value=([bat_component], [])))
+
+    b_all._set_bat_charge_power_limit(2000)
+
+    assert data.data.bat_data["bat2"].data.set.charge_power_limit == 2000
+
+
+def test_set_bat_charge_power_limit_none_clears_cap(data_, monkeypatch):
+    b_all = BatAll()
+    bat_component = MqttBat(MqttBatSetup(id=2), device_id=0)
+    data.data.bat_data["bat2"].data.set.charge_power_limit = 2000
+    monkeypatch.setattr(bat_all, "get_bat_components_by_charge_power_controllability",
+                        Mock(return_value=([bat_component], [])))
+
+    b_all._set_bat_charge_power_limit(None)
+
+    assert data.data.bat_data["bat2"].data.set.charge_power_limit is None
+
+
+def _make_bat_device(component) -> Mock:
+    device = Mock(spec=AbstractDevice)
+    device.components = {"component0": component}
+    return device
+
+
+def _make_bat_component(comp_id: int, charge_power_limit_controllable: bool) -> Mock:
+    component = Mock()
+    component.component_config = Mock(type="bat", id=comp_id)
+    component.charge_power_limit_controllable = Mock(return_value=charge_power_limit_controllable)
+    component.fault_state = FaultState(ComponentInfo(comp_id, f"Speicher {comp_id}", "bat"))
+    return component
+
+
+def test_get_bat_components_by_charge_power_controllability_splits_by_capability(data_):
+    controllable = _make_bat_component(1, True)
+    not_controllable = _make_bat_component(2, False)
+    data.data.system_data["dev1"] = _make_bat_device(controllable)
+    data.data.system_data["dev2"] = _make_bat_device(not_controllable)
+
+    result_controllable, result_not_controllable = bat_all.get_bat_components_by_charge_power_controllability()
+
+    assert result_controllable == [controllable]
+    assert result_not_controllable == [not_controllable]
+
+
+def test_set_charge_power_limit_controllable_state(data_):
+    controllable = _make_bat_component(1, True)
+    data.data.system_data["dev1"] = _make_bat_device(controllable)
+    data.data.bat_data["bat1"] = Bat(1)
+
+    b_all = BatAll()
+    b_all.set_charge_power_limit_controllable_state()
+
+    assert b_all.data.get.charge_power_limit_controllable is True
+    assert data.data.bat_data["bat1"].data.get.charge_power_limit_controllable is True
