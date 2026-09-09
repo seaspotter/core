@@ -1220,6 +1220,12 @@
 				},
 				{
 					"acltype": "publishClientSend",
+					"topic": "openWB/set/bat/config/mode_plans",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientSend",
 					"topic": "openWB/set/bat/config/price_limit",
 					"priority": 0,
 					"allow": true
@@ -1341,6 +1347,12 @@
 				{
 					"acltype": "publishClientReceive",
 					"topic": "openWB/bat/config/price_limit",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientReceive",
+					"topic": "openWB/bat/config/mode_plans",
 					"priority": 0,
 					"allow": true
 				},
@@ -1644,6 +1656,18 @@
 				{
 					"acltype": "publishClientSend",
 					"topic": "openWB/set/command/+/todo/removeAutolockPlan",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientSend",
+					"topic": "openWB/set/command/+/todo/addBatModePlan",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientSend",
+					"topic": "openWB/set/command/+/todo/removeBatModePlan",
 					"priority": 0,
 					"allow": true
 				},

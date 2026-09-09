@@ -12,6 +12,7 @@ from control.chargepoint.chargepoint import Chargepoint
 from control.chargepoint.chargepoint_all import AllChargepointData, AllChargepoints, AllGet
 from control.general import General, PvCharging
 from control.pv import Config, Get, Pv, PvData
+from helpermodules.abstract_plans import BatModePlan, FrequencyPeriod
 from modules.common.abstract_device import AbstractDevice
 from modules.common.fault_state import ComponentInfo, FaultState
 from modules.devices.generic.mqtt.bat import MqttBat
@@ -238,6 +239,11 @@ def _make_initialized_mqtt_bat(id: int = 2) -> MqttBat:
     return bat
 
 
+def _daily_bat_mode_plan(active: bool, control_mode: str) -> BatModePlan:
+    return BatModePlan(active=active, time=["00:00", "23:59"], frequency=FrequencyPeriod(selected="daily"),
+                       control_mode=control_mode)
+
+
 @dataclass
 class BatControlParams:
     name: str
@@ -258,6 +264,7 @@ class BatControlParams:
     bat_control_max_soc: float = 90.0
     price_limit: float = 0.30
     charge_limit: float = 0.30
+    mode_plans: List[BatModePlan] = field(default_factory=list)
 
 
 cases = [
@@ -291,6 +298,15 @@ cases = [
     BatControlParams("Fahrzeuge laden, Ladung PV Überschuss, Eigenverbrauch PV-Anlage", -456,
                      control_mode=BatControlMode.PV_YIELD_WHILE_CHARGING.value,
                      pv_power=100),
+    # Zeitgesteuert
+    BatControlParams("Zeitgesteuert, aktiver Plan -> Entladesperre", 0,
+                     control_mode=BatControlMode.SCHEDULED.value,
+                     mode_plans=[_daily_bat_mode_plan(True, BatControlMode.BLOCK_DISCHARGE.value)]),
+    BatControlParams("Zeitgesteuert, kein aktiver Plan -> Eigenregelung", None,
+                     control_mode=BatControlMode.SCHEDULED.value,
+                     mode_plans=[_daily_bat_mode_plan(False, BatControlMode.BLOCK_DISCHARGE.value)]),
+    BatControlParams("Zeitgesteuert, keine Pläne konfiguriert -> Eigenregelung", None,
+                     control_mode=BatControlMode.SCHEDULED.value),
 ]
 
 
@@ -305,6 +321,7 @@ def test_active_bat_control(params: BatControlParams, data_, monkeypatch):
     b_all.data.config.bat_control_max_soc = params.bat_control_max_soc
     b_all.data.config.price_limit = params.price_limit
     b_all.data.config.charge_limit = params.charge_limit
+    b_all.data.config.mode_plans = params.mode_plans
 
     b_all.data.get.power = params.bat_power
     # b_all.data.get.soc = 50.0
@@ -456,6 +473,60 @@ def test_time_charging_min_bat_soc_allowed_pricing(control_mode: str,
 
     # evaluation
     assert result == expected_result
+
+
+@pytest.mark.parametrize(
+    "mode_plans, expected_control_mode",
+    [
+        pytest.param([], BatControlMode.SELF_REGULATION.value,
+                     id="keine Pläne konfiguriert -> Eigenregelung"),
+        pytest.param([_daily_bat_mode_plan(active=False, control_mode=BatControlMode.BLOCK_DISCHARGE.value)],
+                     BatControlMode.SELF_REGULATION.value,
+                     id="kein aktiver Plan -> Eigenregelung"),
+        pytest.param([_daily_bat_mode_plan(active=True, control_mode=BatControlMode.BLOCK_DISCHARGE.value)],
+                     BatControlMode.BLOCK_DISCHARGE.value,
+                     id="aktiver Plan -> control_mode des Plans"),
+    ]
+)
+def test_resolve_effective_control_mode_scheduled(mode_plans: List[BatModePlan], expected_control_mode: str):
+    # setup
+    b = BatAll()
+    b.data.config.control_mode = BatControlMode.SCHEDULED.value
+    b.data.config.mode_plans = mode_plans
+
+    # execution
+    result = b._resolve_effective_control_mode()  # pyright: ignore[reportPrivateUsage]
+
+    # evaluation
+    assert result == expected_control_mode
+
+
+def test_resolve_effective_control_mode_not_scheduled_passthrough():
+    # setup
+    b = BatAll()
+    b.data.config.control_mode = BatControlMode.MANUAL.value
+
+    # execution
+    result = b._resolve_effective_control_mode()  # pyright: ignore[reportPrivateUsage]
+
+    # evaluation
+    assert result == BatControlMode.MANUAL.value
+
+
+def test_time_charging_min_bat_soc_allowed_scheduled_resolves_active_plan(monkeypatch: pytest.MonkeyPatch):
+    # setup
+    b = BatAll()
+    b.data.config.configured = True
+    b.data.config.control_mode = BatControlMode.SCHEDULED.value
+    b.data.config.mode_plans = [_daily_bat_mode_plan(True, BatControlMode.FORCE_CHARGE_BELOW_PRICE.value)]
+    monkeypatch.setattr(data.data.optional_data, "ep_is_charging_allowed_price_threshold",
+                        Mock(return_value=False))
+
+    # execution
+    result = b.time_charging_min_bat_soc_allowed()
+
+    # evaluation - Plan-control_mode (FORCE_CHARGE_BELOW_PRICE) wird aufgelöst, nicht "scheduled"
+    assert result is False
 
 
 def test_force_charge_below_price_power_returns_none_when_pricing_not_configured(data_, monkeypatch):

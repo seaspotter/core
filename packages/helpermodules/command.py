@@ -20,7 +20,7 @@ from control.chargepoint.chargepoint_template import get_chargepoint_template_de
 from control.ev.charge_template import ChargeTemplate, get_new_charge_template
 from control.ev.ev_template import EvTemplateData
 from helpermodules import pub
-from helpermodules.abstract_plans import AutolockPlan, ScheduledChargingPlan, TimeChargingPlan
+from helpermodules.abstract_plans import AutolockPlan, BatModePlan, ScheduledChargingPlan, TimeChargingPlan
 from helpermodules.utils.run_command import run_command
 # ToDo: move to module commands if implemented
 from modules.backup_clouds.onedrive.api import generateMSALAuthCode, retrieveMSALTokens
@@ -58,6 +58,7 @@ class Command:
     MAX_IDS = {
         "nested payload":
         [("autolock_plan", "openWB/chargepoint/template/[0-9]+$", -1),
+         ("bat_mode_plan", "openWB/bat/config/mode_plans$", -1),
          ("charge_template_scheduled_plan", "openWB/vehicle/template/charge_template/[0-9]+$", -1),
          ("charge_template_time_charging_plan", "openWB/vehicle/template/charge_template/[0-9]+$", -1)],
         "topic":
@@ -84,6 +85,7 @@ class Command:
         """ ermittelt die maximale ID vom Broker """
         plan_extractors = {
             "autolock_plan": lambda p: p.get("autolock", {}).get("plans", []),
+            "bat_mode_plan": lambda p: p if isinstance(p, list) else [],
             "charge_template_scheduled_plan": lambda p: p.get("chargemode", {}).get("scheduled_charging",
                                                                                     {}).get("plans", []),
             "charge_template_time_charging_plan": lambda p: p.get("time_charging", {}).get("plans", [])
@@ -496,6 +498,48 @@ class Command:
             payload, connection_id,
             f'Plan für Sperren nach Uhrzeit mit ID \'{payload["data"]["plan"]}\' vom Profil '
             f'\'{payload["data"]["template"]}\' gelöscht.',
+            MessageType.SUCCESS)
+
+    def addBatModePlan(self, connection_id: str, payload: dict) -> None:
+        """ fügt einen neuen Zeitplan für die Speichersteuerung hinzu.
+        """
+        if "data" in payload and "copy" in payload["data"]:
+            for plan in SubData.bat_all_data.data.config.mode_plans:
+                if plan.id == payload["data"]["copy"]:
+                    new_bat_mode_plan = copy.deepcopy(plan)
+                    break
+            new_bat_mode_plan.name = f'Kopie von {new_bat_mode_plan.name}'
+        else:
+            new_bat_mode_plan = BatModePlan()
+        new_id = self.max_id_bat_mode_plan + 1
+        new_bat_mode_plan.id = new_id
+        SubData.bat_all_data.data.config.mode_plans.append(new_bat_mode_plan)
+        Pub().pub("openWB/set/bat/config/mode_plans",
+                  dataclass_utils.asdict(SubData.bat_all_data.data.config.mode_plans))
+        self.max_id_bat_mode_plan = new_id
+        Pub().pub("openWB/set/command/max_id/bat_mode_plan", new_id)
+        pub_user_message(
+            payload, connection_id,
+            f'Neuer Plan für Speichersteuerung mit ID \'{new_id}\' hinzugefügt.',
+            MessageType.SUCCESS)
+
+    def removeBatModePlan(self, connection_id: str, payload: dict) -> None:
+        """ löscht einen Zeitplan für die Speichersteuerung.
+        """
+        if self.max_id_bat_mode_plan < payload["data"]["plan"]:
+            pub_user_message(
+                payload, connection_id,
+                f'Die ID \'{payload["data"]["plan"]}\' ist größer als die '
+                f'maximal vergebene ID \'{self.max_id_bat_mode_plan}\'.', MessageType.ERROR)
+        for plan in SubData.bat_all_data.data.config.mode_plans:
+            if plan.id == payload["data"]["plan"]:
+                SubData.bat_all_data.data.config.mode_plans.remove(plan)
+                break
+        Pub().pub("openWB/set/bat/config/mode_plans",
+                  dataclass_utils.asdict(SubData.bat_all_data.data.config.mode_plans))
+        pub_user_message(
+            payload, connection_id,
+            f'Plan für Speichersteuerung mit ID \'{payload["data"]["plan"]}\' gelöscht.',
             MessageType.SUCCESS)
 
     def addChargeTemplate(self, connection_id: str, payload: dict) -> None:

@@ -106,3 +106,12 @@ class TimeChargingPlan(TimeframePlan):
 class AutolockPlan(TimeframePlan):
     id: Optional[int] = None
     name: str = "neuer Plan für Sperren nach Uhrzeit"
+
+
+@dataclass
+class BatModePlan(TimeframePlan):
+    id: Optional[int] = None
+    name: str = "neuer Plan für Speichersteuerung"
+    # control_mode als str statt control.bat_all.BatControlMode, um einen Import-Zyklus zu
+    # vermeiden (control.bat_all importiert bereits von hier).
+    control_mode: str = "self_regulation"
