@@ -48,6 +48,11 @@ class BatControlMode(Enum):
     PV_YIELD_WHILE_CHARGING = "pv_yield_while_charging"
     FORCE_CHARGE_BELOW_PRICE = "force_charge_below_price"
     BLOCK_DISCHARGE_ABOVE_PRICE = "block_discharge_above_price"
+    # Kombiniert beide Preis-Modi mit den bestehenden Schwellwerten (charge_limit/price_limit):
+    # unterhalb charge_limit laden erzwingen, oberhalb price_limit Entladung sperren, dazwischen
+    # Eigenregelung. Erfordert charge_limit <= price_limit, sonst hat der Ladung-erzwingen-Bereich
+    # Vorrang (siehe get_power_limit()).
+    PRICE_BAND = "price_band"
     MANUAL = "manual"
     # Ladeleistung begrenzen, Speicher bleibt sonst in Eigenregelung (Entladung, Timing etc.
     # werden nicht vorgegeben) - nutzt set_charge_power_limit statt set_power_limit, siehe
@@ -438,7 +443,8 @@ class BatAll:
                                 control_mode == BatControlMode.SELF_REGULATION.value or
                                 (control_mode in (
                                     BatControlMode.FORCE_CHARGE_BELOW_PRICE.value,
-                                    BatControlMode.BLOCK_DISCHARGE_ABOVE_PRICE.value) and
+                                    BatControlMode.BLOCK_DISCHARGE_ABOVE_PRICE.value,
+                                    BatControlMode.PRICE_BAND.value) and
                                  self.data.set.power_limit is None))
                             if config.bat_power_discharge_active and power_discharge_allowed:
                                 # max Entladeleistung auf max Ausgangsleistung des WR begrenzen
@@ -476,7 +482,8 @@ class BatAll:
                             control_mode == BatControlMode.SELF_REGULATION.value or
                             (control_mode in (
                                 BatControlMode.FORCE_CHARGE_BELOW_PRICE.value,
-                                BatControlMode.BLOCK_DISCHARGE_ABOVE_PRICE.value) and
+                                BatControlMode.BLOCK_DISCHARGE_ABOVE_PRICE.value,
+                                BatControlMode.PRICE_BAND.value) and
                              self.data.set.power_limit is None))
                         if config.bat_power_discharge_active and power_discharge_allowed:
                             # max Entladeleistung auf max Ausgangsleistung des WR begrenzen
@@ -677,6 +684,11 @@ class BatAll:
         elif control_mode == BatControlMode.BLOCK_DISCHARGE_ABOVE_PRICE.value:
             log.debug("Aktive Speichersteuerung: Entladesperre bei hohem Strompreis.")
             power_limit = self._block_discharge_above_price_power()
+        elif control_mode == BatControlMode.PRICE_BAND.value:
+            log.debug("Aktive Speichersteuerung: Preisband (Laden erzwingen / Entladesperre / Eigenregelung).")
+            power_limit = self._force_charge_below_price_power(controllable_bat_components)
+            if power_limit is None:
+                power_limit = self._block_discharge_above_price_power()
         elif control_mode == BatControlMode.MANUAL.value:
             log.debug("Aktive Speichersteuerung: Manuelle Vorgabe.")
             power_limit = self._manual_power(controllable_bat_components)
@@ -763,6 +775,10 @@ class BatAll:
             if control_mode == BatControlMode.FORCE_CHARGE_BELOW_PRICE.value:
                 return data.data.optional_data.ep_is_charging_allowed_price_threshold(self.data.config.charge_limit)
             if control_mode == BatControlMode.BLOCK_DISCHARGE_ABOVE_PRICE.value:
+                return data.data.optional_data.ep_is_charging_allowed_price_threshold(self.data.config.price_limit)
+            if control_mode == BatControlMode.PRICE_BAND.value:
+                # erlaubt, solange keine Entladesperre greift (Ladung-erzwingen- wie auch
+                # Eigenregelungs-Bereich duerfen den Speicher beanspruchen)
                 return data.data.optional_data.ep_is_charging_allowed_price_threshold(self.data.config.price_limit)
             # jeder andere aktive Modus (Fahrzeugladung, Entladesperre, Manuell, Ladeleistung
             # begrenzen, PeakShaving) kann den Speicher jederzeit beanspruchen

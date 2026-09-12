@@ -461,6 +461,10 @@ def test_time_charging_min_bat_soc_allowed(control_mode: str, expected_result: b
                      id="Entladesperre, Preis unter Grenze -> laden erlaubt"),
         pytest.param(BatControlMode.BLOCK_DISCHARGE_ABOVE_PRICE.value, [False], False,
                      id="Entladesperre, Preis über Grenze -> nicht laden"),
+        pytest.param(BatControlMode.PRICE_BAND.value, [True], True,
+                     id="Preisband, Preis unter Entladesperre-Grenze -> laden erlaubt"),
+        pytest.param(BatControlMode.PRICE_BAND.value, [False], False,
+                     id="Preisband, Preis über Entladesperre-Grenze -> nicht laden"),
     ]
 )
 def test_time_charging_min_bat_soc_allowed_pricing(control_mode: str,
@@ -579,6 +583,48 @@ def test_force_charge_below_price_power_returns_none_when_pricing_not_configured
     b_all.data.get.power_limit_controllable = True
     data.data.optional_data.data.electricity_pricing.configured = False
     monkeypatch.setattr(bat_all, "get_bat_components_by_controllability", Mock(return_value=([], [])))
+
+    b_all.get_power_limit()
+
+    assert b_all.data.set.power_limit is None
+
+
+def test_get_power_limit_price_band_prefers_force_charge(data_, monkeypatch):
+    b_all = BatAll()
+    b_all.data.config.bat_control_activated = True
+    b_all.data.config.control_mode = BatControlMode.PRICE_BAND.value
+    b_all.data.get.power_limit_controllable = True
+    monkeypatch.setattr(bat_all, "get_bat_components_by_controllability", Mock(return_value=([], [])))
+    monkeypatch.setattr(b_all, "_force_charge_below_price_power", Mock(return_value=-2000))
+    monkeypatch.setattr(b_all, "_block_discharge_above_price_power", Mock(return_value=0))
+
+    b_all.get_power_limit()
+
+    assert b_all.data.set.power_limit == -2000
+
+
+def test_get_power_limit_price_band_falls_back_to_block_discharge(data_, monkeypatch):
+    b_all = BatAll()
+    b_all.data.config.bat_control_activated = True
+    b_all.data.config.control_mode = BatControlMode.PRICE_BAND.value
+    b_all.data.get.power_limit_controllable = True
+    monkeypatch.setattr(bat_all, "get_bat_components_by_controllability", Mock(return_value=([], [])))
+    monkeypatch.setattr(b_all, "_force_charge_below_price_power", Mock(return_value=None))
+    monkeypatch.setattr(b_all, "_block_discharge_above_price_power", Mock(return_value=0))
+
+    b_all.get_power_limit()
+
+    assert b_all.data.set.power_limit == 0
+
+
+def test_get_power_limit_price_band_self_regulation_between_thresholds(data_, monkeypatch):
+    b_all = BatAll()
+    b_all.data.config.bat_control_activated = True
+    b_all.data.config.control_mode = BatControlMode.PRICE_BAND.value
+    b_all.data.get.power_limit_controllable = True
+    monkeypatch.setattr(bat_all, "get_bat_components_by_controllability", Mock(return_value=([], [])))
+    monkeypatch.setattr(b_all, "_force_charge_below_price_power", Mock(return_value=None))
+    monkeypatch.setattr(b_all, "_block_discharge_above_price_power", Mock(return_value=None))
 
     b_all.get_power_limit()
 
