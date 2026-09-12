@@ -19,6 +19,7 @@ from control.ev.charge_template import ChargeTemplate, ChargeTemplateData
 from control.ev import ev
 from control.ev.ev_template import EvTemplate, EvTemplateData
 from control.limiting_value import LoadmanagementLimit
+from helpermodules.abstract_plans import BatModePlan
 from control.optional_data import Ocpp
 from helpermodules import graph, system
 from helpermodules.broker import BrokerClient
@@ -609,6 +610,12 @@ class SubData:
                     self.set_json_payload_class(self.bat_all_data.data.get, msg)
                 elif re.search("/bat/set/", msg.topic) is not None:
                     self.set_json_payload_class(self.bat_all_data.data.set, msg)
+                elif re.search("/bat/config/mode_plans$", msg.topic) is not None:
+                    # eigenes Topic (nicht Teil von /bat/config als Ganzes) - braucht dataclass_from_dict,
+                    # damit die Liste aus BatModePlan-Objekten statt aus rohen Dicts besteht (sonst
+                    # AttributeError bei z.B. plan.id in command.py).
+                    self.bat_all_data.data.config.mode_plans = [
+                        dataclass_from_dict(BatModePlan, plan) for plan in decode_payload(msg.payload) or []]
                 elif re.search("/bat/config/", msg.topic) is not None:
                     self.set_json_payload_class(self.bat_all_data.data.config, msg)
         except Exception:
