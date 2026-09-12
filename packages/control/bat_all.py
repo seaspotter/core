@@ -138,6 +138,10 @@ class Set:
     hysteresis_discharge: bool = field(default=False, metadata={"topic": "set/hysteresis_discharge"})
     current_state: str = field(default=CurrentState.STARTUP.value, metadata={"topic": "set/current_state"})
     set_limit: bool = False
+    # analog zu current_state/set_limit, aber unabhaengig fuer set_charge_power_limit - die beiden
+    # Primitiven koennen unabhaengig voneinander aktiv/inaktiv sein.
+    charge_power_limit_current_state: str = CurrentState.STARTUP.value
+    set_charge_limit: bool = False
 
 
 def set_factory() -> Set:
@@ -690,6 +694,23 @@ class BatAll:
             self.data.set.charge_power_limit = self.data.config.charge_power_limit
         else:
             self.data.set.charge_power_limit = None
+
+        # set_charge_limit analog zu set_limit: nach einem einmaligen Aufheben der Begrenzung (None)
+        # nicht mehr weiter schreiben, damit z.B. eine parallele externe Steuerung des Registers nicht
+        # jeden Zyklus überschrieben wird.
+        if (control_mode != BatControlMode.LIMIT_CHARGE_POWER.value
+                and self.data.set.charge_power_limit_current_state == CurrentState.STARTUP.value):
+            self.data.set.set_charge_limit = False
+        elif (self.data.set.charge_power_limit_current_state == CurrentState.IDLE.value
+              and self.data.set.charge_power_limit is None):
+            self.data.set.set_charge_limit = False
+        else:
+            self.data.set.set_charge_limit = True
+
+        if self.data.set.charge_power_limit is None:
+            self.data.set.charge_power_limit_current_state = CurrentState.IDLE.value
+        else:
+            self.data.set.charge_power_limit_current_state = CurrentState.ACTIVE.value
 
         self.data.set.power_limit = power_limit
         if power_limit is None:

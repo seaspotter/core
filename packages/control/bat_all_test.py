@@ -626,6 +626,42 @@ def test_get_power_limit_other_modes_leave_charge_power_limit_none(data_, monkey
     assert b_all.data.set.charge_power_limit is None
 
 
+def test_set_charge_limit_false_on_fresh_startup_without_limit_charge_power(data_, monkeypatch):
+    # Direkt nach dem Start ohne LIMIT_CHARGE_POWER darf kein unnoetiger "Aufheben"-Schreibvorgang
+    # ausgeloest werden - es gab ja nie eine Begrenzung zu loeschen.
+    b_all = BatAll()
+    b_all.data.config.bat_control_activated = True
+    b_all.data.config.control_mode = BatControlMode.SELF_REGULATION.value
+    monkeypatch.setattr(bat_all, "get_bat_components_by_controllability", Mock(return_value=([], [])))
+
+    b_all.get_power_limit()
+
+    assert b_all.data.set.set_charge_limit is False
+
+
+def test_set_charge_limit_writes_once_then_goes_quiet_after_disabling(data_, monkeypatch):
+    # Speicher aktiv Steuern -> Nein (bzw. Wechsel weg von LIMIT_CHARGE_POWER) darf das Register nicht
+    # jeden Zyklus weiter beschreiben (sonst wird z.B. eine parallele externe Steuerung ueberschrieben) -
+    # nur einmalig aufheben, danach set_charge_limit wieder False.
+    b_all = BatAll()
+    b_all.data.config.bat_control_activated = True
+    b_all.data.config.control_mode = BatControlMode.LIMIT_CHARGE_POWER.value
+    b_all.data.config.charge_power_limit = 500
+    monkeypatch.setattr(bat_all, "get_bat_components_by_controllability", Mock(return_value=([], [])))
+    b_all.get_power_limit()
+    assert b_all.data.set.set_charge_limit is True
+    assert b_all.data.set.charge_power_limit == 500
+
+    b_all.data.config.bat_control_activated = False
+
+    b_all.get_power_limit()
+    assert b_all.data.set.set_charge_limit is True  # einmaliges Aufheben
+    assert b_all.data.set.charge_power_limit is None
+
+    b_all.get_power_limit()
+    assert b_all.data.set.set_charge_limit is False  # danach keine weiteren Schreibvorgaenge
+
+
 def test_set_bat_charge_power_limit_caps_at_max_charge_power(data_, monkeypatch):
     b_all = BatAll()
     bat_component = MqttBat(MqttBatSetup(id=2), device_id=0)

@@ -71,14 +71,15 @@ class Process:
                             args=(bat_component,
                                   data.data.bat_data[f"bat{bat_component.component_config.id}"].data.set.power_limit),
                             name=f"set power limit {bat_component.component_config.id}"))
-            for bat_component in get_bat_components_by_charge_power_controllability()[0]:
-                modules_threads.append(
-                    Thread(
-                        target=set_charge_power_limit_wrapper,
-                        args=(bat_component,
-                              data.data.bat_data[
-                                  f"bat{bat_component.component_config.id}"].data.set.charge_power_limit),
-                        name=f"set charge power limit {bat_component.component_config.id}"))
+            if data.data.bat_all_data.data.set.set_charge_limit:
+                for bat_component in get_bat_components_by_charge_power_controllability()[0]:
+                    modules_threads.append(
+                        Thread(
+                            target=set_charge_power_limit_wrapper,
+                            args=(bat_component,
+                                  data.data.bat_data[
+                                      f"bat{bat_component.component_config.id}"].data.set.charge_power_limit),
+                            name=f"set charge power limit {bat_component.component_config.id}"))
             for action in data.data.io_actions.actions.values():
                 if isinstance(action, DimmingDirectControl):
                     for d in action.config.configuration.devices:
