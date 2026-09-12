@@ -166,7 +166,8 @@ class SungrowSHBat(AbstractBat):
         # Wechselrichter akzeptiert keine Werte unter 200W.
         power_value = int(max(charge_power_limit, 200))
         log.debug(f"Aktive Ladeleistungsbegrenzung. Speicher wird auf max. {power_value} W Ladeleistung begrenzt")
-        self.__tcp_client.write_register(33046, power_value, data_type=ModbusDataType.UINT_16, unit=unit)
+        # Register hat Faktor 10 (Rohwert * 10 = W), anders als die uebrigen Register dieses Moduls.
+        self.__tcp_client.write_register(33046, round(power_value / 10), data_type=ModbusDataType.UINT_16, unit=unit)
 
     def charge_power_limit_controllable(self) -> bool:
         return True
