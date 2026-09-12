@@ -248,6 +248,7 @@ def _daily_bat_mode_plan(active: bool, control_mode: str) -> BatModePlan:
 class BatControlParams:
     name: str
     expected_power_limit_bat: Optional[float]
+    bat_control_activated: bool = True
     control_mode: str = BatControlMode.SELF_REGULATION.value
     manual_control: str = ManualControl.STOP.value
     manual_power: Optional[int] = None
@@ -307,12 +308,16 @@ cases = [
                      mode_plans=[_daily_bat_mode_plan(False, BatControlMode.BLOCK_DISCHARGE.value)]),
     BatControlParams("Zeitgesteuert, keine Pläne konfiguriert -> Eigenregelung", None,
                      control_mode=BatControlMode.SCHEDULED.value),
+    # bat_control_activated=False: control_mode bleibt konfiguriert, wirkt aber nicht
+    BatControlParams("Aktive Steuerung ausgeschaltet -> Eigenregelung trotz konfiguriertem Modus", None,
+                     bat_control_activated=False, control_mode=BatControlMode.BLOCK_DISCHARGE.value),
 ]
 
 
 @pytest.mark.parametrize("params", cases, ids=[c.name for c in cases])
 def test_active_bat_control(params: BatControlParams, data_, monkeypatch):
     b_all = BatAll()
+    b_all.data.config.bat_control_activated = params.bat_control_activated
     b_all.data.config.control_mode = params.control_mode
     b_all.data.config.manual_control = params.manual_control
     b_all.data.config.manual_power = params.manual_power
@@ -375,6 +380,7 @@ cases = [
 def test_control_price_limit(params: BatControlParams, data_, monkeypatch):
     monkeypatch.setattr(data.data.optional_data, "ep_get_current_price", Mock(return_value=0.2))
     b_all = BatAll()
+    b_all.data.config.bat_control_activated = params.bat_control_activated
     b_all.data.config.control_mode = params.control_mode
     b_all.data.config.manual_power = params.manual_power
     b_all.data.get.power_limit_controllable = params.power_limit_controllable
@@ -434,6 +440,7 @@ def test_time_charging_min_bat_soc_allowed(control_mode: str, expected_result: b
     # setup
     b = BatAll()
     b.data.config.configured = True
+    b.data.config.bat_control_activated = True
     b.data.config.control_mode = control_mode
 
     # execution
@@ -463,6 +470,7 @@ def test_time_charging_min_bat_soc_allowed_pricing(control_mode: str,
     # setup
     b = BatAll()
     b.data.config.configured = True
+    b.data.config.bat_control_activated = True
     b.data.config.control_mode = control_mode
 
     monkeypatch.setattr(data.data.optional_data, "ep_is_charging_allowed_price_threshold",
@@ -491,6 +499,7 @@ def test_time_charging_min_bat_soc_allowed_pricing(control_mode: str,
 def test_resolve_effective_control_mode_scheduled(mode_plans: List[BatModePlan], expected_control_mode: str):
     # setup
     b = BatAll()
+    b.data.config.bat_control_activated = True
     b.data.config.control_mode = BatControlMode.SCHEDULED.value
     b.data.config.mode_plans = mode_plans
 
@@ -504,6 +513,7 @@ def test_resolve_effective_control_mode_scheduled(mode_plans: List[BatModePlan],
 def test_resolve_effective_control_mode_not_scheduled_passthrough():
     # setup
     b = BatAll()
+    b.data.config.bat_control_activated = True
     b.data.config.control_mode = BatControlMode.MANUAL.value
 
     # execution
@@ -513,10 +523,43 @@ def test_resolve_effective_control_mode_not_scheduled_passthrough():
     assert result == BatControlMode.MANUAL.value
 
 
+def test_resolve_effective_control_mode_not_activated_forces_self_regulation():
+    # setup
+    b = BatAll()
+    b.data.config.bat_control_activated = False
+    b.data.config.control_mode = BatControlMode.BLOCK_DISCHARGE.value
+
+    # execution
+    result = b._resolve_effective_control_mode()  # pyright: ignore[reportPrivateUsage]
+
+    # evaluation - control_mode selection bleibt unveraendert erhalten, wirkt aber nicht
+    assert result == BatControlMode.SELF_REGULATION.value
+    assert b.data.config.control_mode == BatControlMode.BLOCK_DISCHARGE.value
+
+
+def test_get_power_limit_publishes_effective_control_mode(data_, monkeypatch: pytest.MonkeyPatch):
+    # setup
+    b_all = BatAll()
+    b_all.data.config.bat_control_activated = True
+    b_all.data.config.control_mode = BatControlMode.SCHEDULED.value
+    b_all.data.config.mode_plans = [_daily_bat_mode_plan(True, BatControlMode.BLOCK_DISCHARGE.value)]
+    b_all.data.get.power_limit_controllable = True
+    data.data.bat_all_data = b_all
+    monkeypatch.setattr(bat_all, "get_bat_components_by_controllability",
+                        Mock(return_value=([_make_initialized_mqtt_bat()], [])))
+
+    # execution
+    b_all.get_power_limit()
+
+    # evaluation
+    assert b_all.data.get.effective_control_mode == BatControlMode.BLOCK_DISCHARGE.value
+
+
 def test_time_charging_min_bat_soc_allowed_scheduled_resolves_active_plan(monkeypatch: pytest.MonkeyPatch):
     # setup
     b = BatAll()
     b.data.config.configured = True
+    b.data.config.bat_control_activated = True
     b.data.config.control_mode = BatControlMode.SCHEDULED.value
     b.data.config.mode_plans = [_daily_bat_mode_plan(True, BatControlMode.FORCE_CHARGE_BELOW_PRICE.value)]
     monkeypatch.setattr(data.data.optional_data, "ep_is_charging_allowed_price_threshold",
@@ -531,6 +574,7 @@ def test_time_charging_min_bat_soc_allowed_scheduled_resolves_active_plan(monkey
 
 def test_force_charge_below_price_power_returns_none_when_pricing_not_configured(data_, monkeypatch):
     b_all = BatAll()
+    b_all.data.config.bat_control_activated = True
     b_all.data.config.control_mode = BatControlMode.FORCE_CHARGE_BELOW_PRICE.value
     b_all.data.get.power_limit_controllable = True
     data.data.optional_data.data.electricity_pricing.configured = False
@@ -545,6 +589,7 @@ def test_get_power_limit_limit_charge_power(data_, monkeypatch):
     # LIMIT_CHARGE_POWER ist unabhängig von power_limit_controllable (bidirektionale Steuerung) -
     # ein Speicher, der nur set_charge_power_limit unterstützt, muss diesen Modus trotzdem nutzen können.
     b_all = BatAll()
+    b_all.data.config.bat_control_activated = True
     b_all.data.config.control_mode = BatControlMode.LIMIT_CHARGE_POWER.value
     b_all.data.config.charge_power_limit = 3000
     b_all.data.get.power_limit_controllable = False
@@ -558,6 +603,7 @@ def test_get_power_limit_limit_charge_power(data_, monkeypatch):
 
 def test_get_power_limit_self_regulation_leaves_charge_power_limit_none(data_, monkeypatch):
     b_all = BatAll()
+    b_all.data.config.bat_control_activated = True
     b_all.data.config.control_mode = BatControlMode.SELF_REGULATION.value
     b_all.data.config.charge_power_limit = 3000
     monkeypatch.setattr(bat_all, "get_bat_components_by_controllability", Mock(return_value=([], [])))
@@ -569,6 +615,7 @@ def test_get_power_limit_self_regulation_leaves_charge_power_limit_none(data_, m
 
 def test_get_power_limit_other_modes_leave_charge_power_limit_none(data_, monkeypatch):
     b_all = BatAll()
+    b_all.data.config.bat_control_activated = True
     b_all.data.config.control_mode = BatControlMode.BLOCK_DISCHARGE.value
     b_all.data.config.charge_power_limit = 3000
     b_all.data.get.power_limit_controllable = True

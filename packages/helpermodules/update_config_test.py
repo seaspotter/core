@@ -90,7 +90,8 @@ def test_upgrade_datastore_124_adds_missing_odometer_pattern_for_json_soc_module
 @pytest.mark.parametrize(
     "activated, condition, mode, manual_mode, price_charge_activated, price_limit_activated, expected", [
         pytest.param(False, "vehicle_charging", "mode_no_discharge", "manual_disable", False, False,
-                     "self_regulation", id="deaktiviert -> Eigenregelung, unabhaengig vom Rest"),
+                     "block_discharge",
+                     id="deaktiviert -> control_mode wird trotzdem abgeleitet (bleibt fuer spaeter erhalten)"),
         pytest.param(True, "manual", "mode_no_discharge", "manual_charge", False, False,
                      "manual", id="manuell, Ladung erzwingen -> manual"),
         pytest.param(True, "manual", "mode_no_discharge", "manual_disable", False, False,
@@ -131,9 +132,11 @@ def test_upgrade_datastore_141_collapses_bat_control_config_into_control_mode(
 
     update_con.upgrade_datastore_141()
 
-    for stale_topic in ("bat_control_activated", "power_limit_condition", "power_limit_mode",
+    for stale_topic in ("power_limit_condition", "power_limit_mode",
                         "manual_mode", "price_charge_activated", "price_limit_activated"):
         assert f"openWB/bat/config/{stale_topic}" not in update_con.all_received_topics
+    # bat_control_activated bleibt als eigener Schnellschalter erhalten, unveraendert
+    assert update_con.all_received_topics["openWB/bat/config/bat_control_activated"] == activated
     assert update_con.all_received_topics["openWB/bat/config/control_mode"] == expected
 
 
@@ -146,6 +149,7 @@ def test_upgrade_datastore_141_defaults_missing_fields_to_vehicle_charging_no_di
 
     update_con.upgrade_datastore_141()
 
+    assert update_con.all_received_topics["openWB/bat/config/bat_control_activated"] is True
     assert update_con.all_received_topics["openWB/bat/config/control_mode"] == "block_discharge"
 
 

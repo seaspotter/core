@@ -79,6 +79,9 @@ class CurrentState(Enum):
 @dataclass
 class Config:
     configured: bool = field(default=False, metadata={"topic": "config/configured"})
+    # Schnellschalter, um die aktive Speichersteuerung auszusetzen, ohne den konfigurierten
+    # control_mode zu verlieren - siehe _resolve_effective_control_mode().
+    bat_control_activated: bool = field(default=False, metadata={"topic": "config/bat_control_activated"})
     control_mode: str = field(default=BatControlMode.SELF_REGULATION.value,
                               metadata={"topic": "config/control_mode"})
     # nur relevant fuer control_mode == MANUAL
@@ -107,6 +110,11 @@ class Get:
     power_limit_controllable: bool = field(default=False, metadata={"topic": "get/power_limit_controllable"})
     charge_power_limit_controllable: bool = field(default=False, metadata={
         "topic": "get/charge_power_limit_controllable"})
+    # tatsaechlich wirksamer control_mode dieses Zyklus - loest SCHEDULED auf, siehe
+    # _resolve_effective_control_mode(). Fuer die UI, um bei Zeitplaenen anzuzeigen, was
+    # gerade wirklich aktiv ist.
+    effective_control_mode: str = field(default=BatControlMode.SELF_REGULATION.value, metadata={
+        "topic": "get/effective_control_mode"})
     soc: float = field(default=0, metadata={"topic": "get/soc"})
     daily_exported: float = field(default=0, metadata={"topic": "get/daily_exported"})
     daily_imported: float = field(default=0, metadata={"topic": "get/daily_imported"})
@@ -629,8 +637,12 @@ class BatAll:
     def _resolve_effective_control_mode(self) -> str:
         """Loest SCHEDULED anhand des aktuell aktiven Zeitplans (Config.mode_plans) auf einen der
         uebrigen control_mode-Werte auf, sonst unveraendert. Ohne aktiven Plan Eigenregelung als
-        sicherer Standard.
+        sicherer Standard. Ist bat_control_activated deaktiviert, greift immer Eigenregelung, ohne
+        den konfigurierten control_mode zu veraendern - so bleibt die Auswahl erhalten, wenn die
+        aktive Steuerung spaeter wieder eingeschaltet wird.
         """
+        if not self.data.config.bat_control_activated:
+            return BatControlMode.SELF_REGULATION.value
         control_mode = self.data.config.control_mode
         if control_mode != BatControlMode.SCHEDULED.value:
             return control_mode
@@ -643,6 +655,7 @@ class BatAll:
     def get_power_limit(self):
         controllable_bat_components, _ = get_bat_components_by_controllability()
         control_mode = self._resolve_effective_control_mode()
+        self.data.get.effective_control_mode = control_mode
         # Falls kein steuerbarer Speicher installiert oder Eigenregelung gewählt ist
         if self.data.get.power_limit_controllable is False or control_mode == BatControlMode.SELF_REGULATION.value:
             power_limit = None

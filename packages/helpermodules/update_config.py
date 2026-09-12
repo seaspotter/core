@@ -61,6 +61,7 @@ class UpdateConfig:
     DATASTORE_VERSION = 141
 
     valid_topic = [
+        "^openWB/bat/config/bat_control_activated$",
         "^openWB/bat/config/control_mode$",
         "^openWB/bat/config/manual_control$",
         "^openWB/bat/config/manual_power$",
@@ -82,6 +83,7 @@ class UpdateConfig:
         "^openWB/bat/get/fault_str$",
         "^openWB/bat/get/power_limit_controllable$",
         "^openWB/bat/get/charge_power_limit_controllable$",
+        "^openWB/bat/get/effective_control_mode$",
         "^openWB/bat/get/soc$",
         "^openWB/bat/get/power$",
         "^openWB/bat/get/imported$",
@@ -573,6 +575,7 @@ class UpdateConfig:
         "^openWB/system/version$",
     ]
     default_topic = (
+        ("openWB/bat/config/bat_control_activated", False),
         ("openWB/bat/config/control_mode", "self_regulation"),
         ("openWB/bat/config/manual_control", "stop"),
         ("openWB/bat/config/manual_power", None),
@@ -586,6 +589,8 @@ class UpdateConfig:
         ("openWB/bat/get/fault_state", 0),
         ("openWB/bat/get/fault_str", NO_ERROR),
         ("openWB/bat/get/power_limit_controllable", False),
+        ("openWB/bat/get/charge_power_limit_controllable", False),
+        ("openWB/bat/get/effective_control_mode", "self_regulation"),
         ("openWB/chargepoint/get/power", 0),
         ("openWB/chargepoint/template/0", get_chargepoint_template_default()),
         ("openWB/counter/get/hierarchy", []),
@@ -3558,18 +3563,20 @@ class UpdateConfig:
 
     def upgrade_datastore_141(self) -> None:
         def upgrade(topic: str, payload) -> Optional[dict]:
-            # Speichersteuerung vereinfacht: bat_control_activated, power_limit_condition,
-            # power_limit_mode, manual_mode, price_limit_activated und price_charge_activated
-            # werden durch ein einzelnes Auswahlfeld control_mode (plus manual_control fuer den
-            # Modus MANUAL) ersetzt. "aus" wird direkt zum Modus SELF_REGULATION statt eines
-            # separaten Schalters. Die vormals kombinierbare Preisgrenze (zwei unabhaengige
-            # Checkboxen) wird in zwei eigenstaendige, sich gegenseitig ausschliessende Modi
-            # aufgeteilt - bei alten Konfigurationen mit beiden aktiven Checkboxen hat
-            # price_charge_activated (Laden erzwingen) Vorrang. Fuer "Entladesperre/Nur
-            # Hausverbrauch/PV-Ertrag speichern" im manuellen Modus (dauerhaft, nicht an
-            # Fahrzeugladung gekoppelt) gibt es kein Pendant mehr - Entladesperre (immer) ist hier
-            # die konservativste Naeherung (keine ungewollte Entladung), statt die aktive
-            # Steuerung stillschweigend zu deaktivieren.
+            # Speichersteuerung vereinfacht: power_limit_condition, power_limit_mode, manual_mode,
+            # price_limit_activated und price_charge_activated werden durch ein einzelnes
+            # Auswahlfeld control_mode (plus manual_control fuer den Modus MANUAL) ersetzt.
+            # bat_control_activated bleibt als eigenstaendiger Schnellschalter bestehen (Wert
+            # unveraendert uebernommen) - der darunter konfigurierte control_mode wird immer aus
+            # den alten Feldern abgeleitet, unabhaengig davon, ob die Steuerung aktuell an- oder
+            # ausgeschaltet ist, damit die Auswahl beim spaeteren Wiedereinschalten erhalten
+            # bleibt. Die vormals kombinierbare Preisgrenze (zwei unabhaengige Checkboxen) wird in
+            # zwei eigenstaendige, sich gegenseitig ausschliessende Modi aufgeteilt - bei alten
+            # Konfigurationen mit beiden aktiven Checkboxen hat price_charge_activated (Laden
+            # erzwingen) Vorrang. Fuer "Entladesperre/Nur Hausverbrauch/PV-Ertrag speichern" im
+            # manuellen Modus (dauerhaft, nicht an Fahrzeugladung gekoppelt) gibt es kein Pendant
+            # mehr - Entladesperre (immer) ist hier die konservativste Naeherung (keine ungewollte
+            # Entladung), statt die aktive Steuerung stillschweigend zu deaktivieren.
             stale_topics = ("openWB/bat/config/power_limit_condition",
                             "openWB/bat/config/power_limit_mode",
                             "openWB/bat/config/manual_mode",
@@ -3585,14 +3592,10 @@ class UpdateConfig:
                 return decode_payload(raw) if raw is not None else default
 
             if topic == "openWB/bat/config/bat_control_activated":
-                updated_topics = {"openWB/bat/config/bat_control_activated": ""}
+                updated_topics = {}
                 for stale_topic in stale_topics:
                     if stale_topic in self.all_received_topics:
                         updated_topics[stale_topic] = ""
-
-                if not decode_payload(payload):
-                    updated_topics["openWB/bat/config/control_mode"] = "self_regulation"
-                    return updated_topics
 
                 condition = get_old_value("power_limit_condition", "vehicle_charging")
                 mode = get_old_value("power_limit_mode", "mode_no_discharge")

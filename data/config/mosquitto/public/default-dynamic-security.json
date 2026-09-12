@@ -1178,6 +1178,12 @@
 				},
 				{
 					"acltype": "publishClientSend",
+					"topic": "openWB/set/bat/config/bat_control_activated",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientSend",
 					"topic": "openWB/set/bat/config/bat_control_max_soc",
 					"priority": 0,
 					"allow": true
@@ -1310,6 +1316,12 @@
 				},
 				{
 					"acltype": "publishClientReceive",
+					"topic": "openWB/bat/config/bat_control_activated",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientReceive",
 					"topic": "openWB/bat/config/bat_control_min_soc",
 					"priority": 0,
 					"allow": true
@@ -1365,6 +1377,12 @@
 				{
 					"acltype": "publishClientReceive",
 					"topic": "openWB/bat/get/charge_power_limit_controllable",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientReceive",
+					"topic": "openWB/bat/get/effective_control_mode",
 					"priority": 0,
 					"allow": true
 				},

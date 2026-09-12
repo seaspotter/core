@@ -2,6 +2,7 @@ import inspect
 import logging
 from typing import Optional, TypeVar, Generic, Dict, Any, Callable, Iterable, List
 
+from control import data
 from dataclass_utils import dataclass_from_dict
 from helpermodules import timecheck
 from helpermodules.pub import Pub
@@ -140,7 +141,13 @@ def set_power_limit_wrapper(bat_component: AbstractBat, power_limit: Optional[in
 
 def set_charge_power_limit_wrapper(bat_component: AbstractBat, charge_power_limit: Optional[int]):
     """set_charge_power_limit innerhalb des SingleComponentUpdateContext aufrufen,
-    damit Fehler im fault_state-Handler behandelt werden
+    damit Fehler im fault_state-Handler behandelt werden.
+    charge_power_limit=None (keine Begrenzung gewuenscht) auf die maximale Ladeleistung dieses
+    Speichers aufloesen, falls bekannt - einheitlich fuer alle Module statt in jedem Modul einzeln.
     """
+    if charge_power_limit is None:
+        max_charge_power = data.data.bat_data[f"bat{bat_component.component_config.id}"].data.get.max_charge_power
+        if max_charge_power > 0:
+            charge_power_limit = max_charge_power
     with SingleComponentUpdateContext(bat_component.fault_state, update_always=False):
         bat_component.set_charge_power_limit(charge_power_limit)
