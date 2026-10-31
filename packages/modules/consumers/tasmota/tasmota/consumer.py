@@ -7,6 +7,7 @@ from modules.common.abstract_device import DeviceDescriptor
 from modules.common.component_state import ConsumerState
 from modules.common.configurable_consumer import ConfigurableConsumer
 from modules.consumers.tasmota.tasmota.config import Tasmota
+from modules.devices.tasmota.tasmota.parser import TasmotaParser
 
 log = logging.getLogger(__name__)
 
@@ -25,11 +26,14 @@ def create_consumer(config: Tasmota):
         # Status 0 liefert Relais- und Energiemesswerte in einer Antwort.
         url = f"http://{config.configuration.ip_address}/cm?cmnd=Status%200"
         response = session.get(url, timeout=5).json()
-        state = bool(response["Status"]["Power"])
-        energy = response["StatusSNS"].get("ENERGY")
-        # Ohne Energiemessung (reines Schaltrelais) bleibt power 0.
-        power = float(energy["Power"]) if energy else 0.0
-        return ConsumerState(power=power, state=state)
+        parser = TasmotaParser(response)
+        return ConsumerState(
+            power=parser.power,
+            state=parser.state,
+            voltages=parser.voltages,
+            currents=parser.currents,
+            powers=parser.powers,
+        )
 
     def switch_on() -> None:
         session.get(f"http://{config.configuration.ip_address}/cm?cmnd=Power%20on", timeout=5)
