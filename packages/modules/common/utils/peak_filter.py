@@ -91,7 +91,16 @@ class PeakFilter:
             elif allowed_deviation > 0 and (total_energy - previous_total_energy) > allowed_deviation:
                 log.debug(f"PeakFilter: Unplausibler Zählerwert: {total_energy / 1000}kWh. "
                           f"Differenz zum vorherigen Wert: {total_energy - previous_total_energy}Wh. "
-                          f"erlaubte Differenz: {round(allowed_deviation, 2)}Wh.")
+                          f"erlaubte Differenz: {round(allowed_deviation, 2)}Wh. Wert wird auf die erlaubte "
+                          "Differenz begrenzt und in den folgenden Zyklen nachgezogen.")
+                # Manche Zähler/Wechselrichter aktualisieren ihren Stand nicht kontinuierlich, sondern in
+                # Sprüngen. Ein einmaliges Verwerfen würde den vollen Sprung im nächsten Zyklus ungebremst
+                # durchreichen (der Sprung bleibt ja bestehen und ist dann keine Abweichung mehr). Stattdessen
+                # hier auf die erlaubte Differenz begrenzen und als neue Vergleichsbasis merken, sodass der
+                # Sprung über die folgenden Zyklen gleichmäßig nachgezogen wird.
+                checked_energy = previous_total_energy + allowed_deviation
+                prev_energy = checked_energy
+                return checked_energy, prev_energy
             elif (total_energy - previous_total_energy) < 0:
                 if previous_total_energy > max_energy:
                     log.debug("PeakFilter: Erholung nach unplausibel hohem Zählerwert erkannt. "
