@@ -16,9 +16,14 @@ class ControlParameter:
     limit: Optional[LoadmanagementLimit] = field(default_factory=loadmanagement_limit_factory, metadata={
                                                  "topic": "control_parameter/limit"})
     min_current: int = field(default=6, metadata={"topic": "control_parameter/min_current"})
+    # wie min_current, aber inkl. Mindest-SoC-Boost - nur für auto_phase_switch() relevant
+    min_soc_current: int = field(default=6, metadata={"topic": "control_parameter/min_soc_current"})
     phases: int = field(default=0, metadata={"topic": "control_parameter/phases"})
     required_current: float = field(default=0, metadata={"topic": "control_parameter/required_current"})
     required_currents: List[float] = field(default_factory=currents_list_factory)
+    # für auto_phase_switch(): die tatsächlich reservierte Leistung, damit das Zurücknehmen der Reservierung
+    # exakt zum Reservieren passt statt es (ggf. mit geänderten Werten) neu zu berechnen
+    reserved_power: float = field(default=0, metadata={"topic": "control_parameter/reserved_power"})
     state: ChargepointState = field(default=ChargepointState.NO_CHARGING_ALLOWED,
                                     metadata={"topic": "control_parameter/state"})
     submode: Chargemode_enum = field(default=Chargemode_enum.STOP, metadata={"topic": "control_parameter/submode"})

@@ -188,7 +188,7 @@ class Chargepoint(ChargepointRfidMixin, Load):
             self.data.set.ocpp_transaction_id = None
         # muss vor dem Zurücksetzen der control parameter aufgerufen werden
         self.data.set.charging_ev_data.reset_phase_switch(self.data.control_parameter)
-        self.data.set.charging_ev_data.reset_phase_switch_delay(self.data.control_parameter, self.get_max_phase_hw())
+        self.data.set.charging_ev_data.reset_phase_switch_delay(self.data.control_parameter)
         self.reset_control_parameter_at_charge_stop()
         data.data.counter_all_data.get_evu_counter().reset_switch_on_off(self)
         if self.data.get.plug_state is False and self.data.set.plug_state_prev is True:
@@ -232,8 +232,8 @@ class Chargepoint(ChargepointRfidMixin, Load):
                 self.data.control_parameter.chargemode = Chargemode.TIME_CHARGING
             else:
                 self.data.control_parameter.chargemode = self.data.set.charge_template.data.chargemode.selected
-            # min_current nicht während laufender Phasenumschaltung ändern: auto_phase_switch() berechnet die
-            # reservierte Leistung jeden Zyklus neu daraus, ein Wechsel mittendrin würde reserved_surplus verfälschen.
+            # nicht während laufender Phasenumschaltung ändern, sonst verfälscht das reserved_surplus in
+            # auto_phase_switch()
             if self.data.control_parameter.state not in PHASE_SWITCH_STATES:
                 if self.template.data.charging_type == ChargingType.AC.value:
                     self.data.control_parameter.min_current = (
@@ -241,15 +241,18 @@ class Chargepoint(ChargepointRfidMixin, Load):
                 else:
                     self.data.control_parameter.min_current = (
                         self.data.set.charging_ev_data.ev_template.data.dc_min_current)
-                # Mindest-SoC-Ladestrom statt allgemeinem Mindeststrom als Untergrenze, sonst würde bei
-                # automatischer Rückschaltung auf 1 Phase unterhalb des Mindest-SoC-Ladestroms geladen.
+                # min_soc_current statt min_current als Phasenumschalt-Untergrenze; min_current bleibt der
+                # harte Lastmanagement-Boden (algorithm/min_current.py), sonst würde dort bei reduziertem
+                # Strom komplett abgeschaltet statt mit weniger geladen
                 pv_charging = self.data.set.charge_template.data.chargemode.pv_charging
                 soc = self.data.set.charging_ev_data.data.get.soc
                 if (self.data.control_parameter.chargemode == Chargemode.PV_CHARGING and
                         pv_charging.min_soc != 0 and soc is not None and soc < pv_charging.min_soc):
-                    self.data.control_parameter.min_current = (
+                    self.data.control_parameter.min_soc_current = (
                         pv_charging.min_soc_current if self.template.data.charging_type == ChargingType.AC.value
                         else pv_charging.dc_min_soc_current)
+                else:
+                    self.data.control_parameter.min_soc_current = self.data.control_parameter.min_current
         except Exception:
             log.exception("Fehler im LP-Modul "+str(self.num))
 
@@ -678,7 +681,7 @@ class Chargepoint(ChargepointRfidMixin, Load):
 
                     if self.chargemode_changed or self.submode_changed:
                         data.data.counter_all_data.get_evu_counter().reset_switch_on_off(self)
-                        charging_ev.reset_phase_switch_delay(self.data.control_parameter, self.get_max_phase_hw())
+                        charging_ev.reset_phase_switch_delay(self.data.control_parameter)
                     if self.chargemode_changed:
                         self.data.control_parameter.failed_phase_switches = 0
                     message = message_ev if message_ev else message
