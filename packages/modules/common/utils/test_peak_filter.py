@@ -64,24 +64,15 @@ cases = [
     Params("Imp/ Exp Zähler - Werte valide", ComponentType.COUNTER, 1000, 500, 900, 1005, 505, 1005, 505),
     Params("Imp/ Exp Wechselrichter - Werte valide", ComponentType.INVERTER, 1000, 500, 1500, 1005, 505, 1005, 505),
     Params("Imp/ Exp Speicher - Werte valide", ComponentType.BAT, 1000, 500, 400, 1005, 505, 1005, 505),
-    Params("Imp/ Exp Zähler - Werte invalide", ComponentType.COUNTER, 1000, 500, 1000, 1300, 800,
-           1016.6666666666666, 516.6666666666666),
-    Params("Imp/ Exp Zähler - Import invalide", ComponentType.COUNTER, 1000, 500, 1000, 1300, 505,
-           1016.6666666666666, 505),
-    Params("Imp/ Exp Zähler - Export invalide", ComponentType.COUNTER, 1000, 500, 1000, 1005, 800,
-           1005, 516.6666666666666),
-    Params("Imp/ Exp Wechselrichter - Werte invalide", ComponentType.INVERTER, 1000, 500, 1500, 1300, 800,
-           1011.1111111111111, 511.1111111111111),
-    Params("Imp/ Exp Wechselrichter - Import invalide", ComponentType.INVERTER, 1000, 500, 1500, 1300, 505,
-           1011.1111111111111, 505),
-    Params("Imp/ Exp Wechselrichter - Export invalide", ComponentType.INVERTER, 1000, 500, 1500, 1005, 800,
-           1005, 511.1111111111111),
-    Params("Imp/ Exp Speicher - Werte invalide", ComponentType.BAT, 1000, 500, 400, 1300, 800,
-           1005.5555555555555, 505.55555555555554),
-    Params("Imp/ Exp Speicher - Import invalide", ComponentType.BAT, 1000, 500, 400, 1300, 505,
-           1005.5555555555555, 505),
-    Params("Imp/ Exp Speicher - Export invalide", ComponentType.BAT, 1000, 500, 400, 1005, 800,
-           1005, 505.55555555555554),
+    Params("Imp/ Exp Zähler - Werte invalide", ComponentType.COUNTER, 1000, 500, 1000, 1300, 800, None, None),
+    Params("Imp/ Exp Zähler - Import invalide", ComponentType.COUNTER, 1000, 500, 1000, 1300, 505, None, 505),
+    Params("Imp/ Exp Zähler - Export invalide", ComponentType.COUNTER, 1000, 500, 1000, 1005, 800, 1005, None),
+    Params("Imp/ Exp Wechselrichter - Werte invalide", ComponentType.INVERTER, 1000, 500, 1500, 1300, 800, None, None),
+    Params("Imp/ Exp Wechselrichter - Import invalide", ComponentType.INVERTER, 1000, 500, 1500, 1300, 505, None, 505),
+    Params("Imp/ Exp Wechselrichter - Export invalide", ComponentType.INVERTER, 1000, 500, 1500, 1005, 800, 1005, None),
+    Params("Imp/ Exp Speicher - Werte invalide", ComponentType.BAT, 1000, 500, 400, 1300, 800, None, None),
+    Params("Imp/ Exp Speicher - Import invalide", ComponentType.BAT, 1000, 500, 400, 1300, 505, None, 505),
+    Params("Imp/ Exp Speicher - Export invalide", ComponentType.BAT, 1000, 500, 400, 1005, 800, 1005, None),
     Params("Imp/ Exp Speicher - Import > 50Y", ComponentType.BAT, 500000000, 500, 400, 500000000, 505, None, 505),
     Params("Imp/ Exp Speicher - Export > 50Y", ComponentType.BAT, 1000, 500000000, 400, 1005, 500000000, 1005, None),
     Params("Imp/ Exp Speicher - Export ~ 45Y", ComponentType.BAT,
@@ -89,13 +80,6 @@ cases = [
     Params("Imp/ Exp Speicher - Import ~ 45Y", ComponentType.BAT,
            400000000, 500, 400, 400000000, 505, 400000000, 505)
 ]
-
-
-def assert_close(actual, expected):
-    if expected is None:
-        assert actual is None
-    else:
-        assert actual == pytest.approx(expected)
 
 
 @pytest.mark.parametrize("params", cases, ids=[c.name for c in cases])
@@ -109,56 +93,77 @@ def test_check_values_valid(params):
             imp, exp = pf.check_values(params.power, params.imported, params.exported)
     else:
         imp, exp = pf.check_values(params.power, params.imported, params.exported)
-        assert_close(imp, params.expected_imported)
-        assert_close(exp, params.expected_exported)
+        assert imp == params.expected_imported
+        assert exp == params.expected_exported
 
 
-def test_check_total_energy_forward_jump_is_capped_and_catches_up_over_cycles():
+def test_check_total_energy_forward_jump_within_bound_is_capped_and_catches_up_over_cycles():
     fs = DummyFaultState()
     pf = PeakFilter(ComponentType.COUNTER, 1, fs)
 
     allowed_deviation = 10
     max_energy = 1_000_000_000
 
-    # Grosser Vorwaertssprung (zB Zaehler/Wechselrichter aktualisiert nur sprunghaft):
-    # wird auf die erlaubte Differenz begrenzt statt verworfen, und als neue Basis gemerkt.
-    checked, previous = pf.check_total_energy(2000, 1000, allowed_deviation, max_energy)
+    # Vorwaertssprung genau am Rand von MAX_SMOOTHABLE_JUMP_FACTOR * allowed_deviation (zB Zaehler/WR,
+    # der seinen Stand nur sprunghaft aktualisiert): wird auf die erlaubte Differenz begrenzt statt
+    # verworfen, und als neue Basis gemerkt.
+    checked, previous = pf.check_total_energy(1100, 1000, allowed_deviation, max_energy)
     assert checked == 1010
     assert previous == 1010
 
     # Rohwert bleibt stehen - naechster Zyklus holt schrittweise weiter auf.
-    checked, previous = pf.check_total_energy(2000, previous, allowed_deviation, max_energy)
+    checked, previous = pf.check_total_energy(1100, previous, allowed_deviation, max_energy)
     assert checked == 1020
     assert previous == 1020
 
-    for _ in range(98):
-        checked, previous = pf.check_total_energy(2000, previous, allowed_deviation, max_energy)
-    assert checked == 2000
-    assert previous == 2000
+    for _ in range(8):
+        checked, previous = pf.check_total_energy(1100, previous, allowed_deviation, max_energy)
+    assert checked == 1100
+    assert previous == 1100
 
     # Danach wird mit kleinen, plausiblen Differenzen normal weitergezaehlt.
-    checked, previous = pf.check_total_energy(2005, previous, allowed_deviation, max_energy)
-    assert checked == 2005
-    assert previous == 2005
+    checked, previous = pf.check_total_energy(1105, previous, allowed_deviation, max_energy)
+    assert checked == 1105
+    assert previous == 1105
 
     # Rueckwaertssprung: letzter gueltiger Hoechststand bleibt erhalten.
-    checked, previous = pf.check_total_energy(1900, previous, allowed_deviation, max_energy)
-    assert checked == 2005
-    assert previous == 2005
+    checked, previous = pf.check_total_energy(1000, previous, allowed_deviation, max_energy)
+    assert checked == 1105
+    assert previous == 1105
 
     # Unterhalb des Hoechststands wird weiterhin gewartet.
-    checked, previous = pf.check_total_energy(1990, previous, allowed_deviation, max_energy)
-    assert checked == 2005
-    assert previous == 2005
+    checked, previous = pf.check_total_energy(1090, previous, allowed_deviation, max_energy)
+    assert checked == 1105
+    assert previous == 1105
 
     # Naechster gleicher oder hoeherer Wert wird wieder zugelassen.
-    checked, previous = pf.check_total_energy(2005, previous, allowed_deviation, max_energy)
-    assert checked == 2005
-    assert previous == 2005
+    checked, previous = pf.check_total_energy(1105, previous, allowed_deviation, max_energy)
+    assert checked == 1105
+    assert previous == 1105
 
-    checked, previous = pf.check_total_energy(2010, previous, allowed_deviation, max_energy)
-    assert checked == 2010
-    assert previous == 2010
+    checked, previous = pf.check_total_energy(1110, previous, allowed_deviation, max_energy)
+    assert checked == 1110
+    assert previous == 1110
+
+
+def test_check_total_energy_forward_jump_beyond_bound_falls_back_to_reject_then_accept():
+    fs = DummyFaultState()
+    pf = PeakFilter(ComponentType.COUNTER, 1, fs)
+
+    allowed_deviation = 10
+    max_energy = 1_000_000_000
+
+    # Sprung deutlich groesser als MAX_SMOOTHABLE_JUMP_FACTOR * allowed_deviation (zB nach einer
+    # laengeren Verbindungsunterbrechung mit echtem Nachholbedarf, nicht nur einem groben Zaehlertakt):
+    # wird NICHT geglaettet, sondern wie vor dieser Aenderung einmal verworfen und bei Bestaetigung im
+    # naechsten Zyklus sofort in voller Hoehe uebernommen.
+    checked, previous = pf.check_total_energy(2000, 1000, allowed_deviation, max_energy)
+    assert checked is None
+    assert previous == 2000
+
+    checked, previous = pf.check_total_energy(2000, previous, allowed_deviation, max_energy)
+    assert checked == 2000
+    assert previous == 2000
 
 
 def test_check_total_energy_recovery_after_too_high_previous_value():
