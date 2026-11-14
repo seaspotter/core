@@ -197,7 +197,7 @@ def test_calc_charge_cost_short_charge_uses_current_entry(mock_data, monkeypatch
     assert cp.data.set.log.costs == pytest.approx(0.015)
 
 
-def test_calc_charge_cost_reference_end_unique_price(mock_data, monkeypatch):
+def test_calc_charge_cost_reference_end_fixed_price(mock_data, monkeypatch):
     cp = Chargepoint(4, None)
     cp.data.set.log.imported_since_plugged = cp.data.set.log.imported_since_mode_switch = 3950
     cp.data.set.log.timestamp_mode_switch = 1652682600  # 8:30
@@ -212,13 +212,38 @@ def test_calc_charge_cost_reference_end_unique_price(mock_data, monkeypatch):
     current_entry["pv"]["all"]["exported"] = 3000
     current_entry["pv"]["pv1"]["exported"] = 3000
     monkeypatch.setattr(chargelog, "create_entry", Mock(return_value=current_entry))
-    data.data.general_data.data.prices = Prices(bat=0.0002, cp=0, grid=0.0002, pv=0.0002)
+    data.data.general_data.data.prices = Prices(cost_mode="fixed", fixed_price=0.0002)
 
     with patch("builtins.open", mock_open(read_data=json.dumps(daily_log))):
         calc_energy_costs(cp, True)
 
     assert cp.data.set.log.charged_energy_by_source == {'bat': 699.57, 'cp': 0.0, 'grid': 1300.14, 'pv': 400.29}
     assert round(cp.data.set.log.costs, 5) == 0.79
+
+
+def test_calc_charge_cost_reference_end_grid_price(mock_data, monkeypatch):
+    cp = Chargepoint(4, None)
+    cp.data.set.log.imported_since_plugged = cp.data.set.log.imported_since_mode_switch = 3950
+    cp.data.set.log.timestamp_mode_switch = 1652682600  # 8:30
+    cp.data.get.imported = 4100
+    cp.data.set.log.charged_energy_by_source = {'grid': 1243, 'pv': 386, 'bat': 671, 'cp': 0.0}
+    daily_log = mock_daily_log(monkeypatch)
+    current_entry = json.loads(json.dumps(daily_log["entries"][-1]))
+    current_entry["bat"]["all"]["exported"] = 4000
+    current_entry["bat"]["bat2"]["exported"] = 4000
+    current_entry["counter"]["counter0"]["imported"] = 4500
+    current_entry["cp"]["cp4"]["imported"] = 4100
+    current_entry["pv"]["all"]["exported"] = 3000
+    current_entry["pv"]["pv1"]["exported"] = 3000
+    monkeypatch.setattr(chargelog, "create_entry", Mock(return_value=current_entry))
+    data.data.general_data.data.prices = Prices(cost_mode="grid")
+
+    with patch("builtins.open", mock_open(read_data=json.dumps(daily_log))):
+        calc_energy_costs(cp, True)
+
+    # PV- und Speicherenergie werden zum Netzpreis des Eintrags (0.0003 €/Wh) abgerechnet:
+    # (699.57 + 1300.14 + 400.29) Wh - bisher verbuchte 2300 Wh = 100 Wh
+    assert cp.data.set.log.costs == pytest.approx(100 * 0.0003)
 
 
 def test_calc_charge_cost_reference_middle_day_change(mock_data, monkeypatch):

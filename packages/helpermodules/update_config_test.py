@@ -720,3 +720,83 @@ def test_start_filesystem_migrations_launches_one_worker(monkeypatch):
         stderr=update_config.subprocess.DEVNULL,
         close_fds=True,
     )
+
+
+def _topics_160(grid, pv, bat, tariff, grid_fee=None):
+    topics = {
+        "openWB/general/prices/grid": grid,
+        "openWB/general/prices/pv": pv,
+        "openWB/general/prices/bat": bat,
+        "openWB/optional/ep/flexible_tariff/provider": tariff,
+        "openWB/system/datastore_version": [158],
+    }
+    if grid_fee is not None:
+        topics["openWB/optional/ep/grid_fee/provider"] = grid_fee
+    return topics
+
+
+NO_TARIFF = {"type": None, "configuration": {}}
+
+
+@pytest.mark.parametrize(
+    "grid, pv, bat, tariff, expected_mode, expected_tariff_type",
+    [
+        pytest.param(0.0003, 0.0002, 0.0001, NO_TARIFF, "mix", "fixed_hours", id="no_tariff_different_prices"),
+        pytest.param(0.0002, 0.0002, 0.0002, NO_TARIFF, "fixed", "fixed_hours", id="no_tariff_all_equal_billing"),
+        pytest.param(0.0002, 0.0002, 0.0002, {"type": "awattar", "configuration": {}}, "mix", "awattar",
+                     id="tariff_all_equal_stays_mix"),
+    ])
+def test_upgrade_datastore_160_prices(mock_pub, grid, pv, bat, tariff, expected_mode, expected_tariff_type):
+    uc = UpdateConfig()
+    uc.all_received_topics = _topics_160(grid, pv, bat, tariff)
+
+    uc.upgrade_datastore_160()
+
+    topics = uc.all_received_topics
+    assert topics["openWB/general/prices/cost_mode"] == expected_mode
+    assert topics["openWB/general/prices/fixed_price"] == grid
+    assert topics["openWB/optional/ep/flexible_tariff/provider"]["type"] == expected_tariff_type
+    assert topics["openWB/optional/ep/pv_price/provider"]["configuration"]["default_price"] == pv
+    assert topics["openWB/optional/ep/bat_price/provider"]["configuration"]["default_price"] == bat
+    assert topics["openWB/system/datastore_version"] == [158, 160]
+
+
+def test_upgrade_datastore_160_tariff_without_provider_gets_old_grid_price(mock_pub):
+    uc = UpdateConfig()
+    uc.all_received_topics = _topics_160(0.00031, 0.00015, 0.0002, NO_TARIFF)
+
+    uc.upgrade_datastore_160()
+
+    tariff = uc.all_received_topics["openWB/optional/ep/flexible_tariff/provider"]
+    assert tariff["configuration"]["default_price"] == 0.00031
+    assert tariff["configuration"]["tariffs"] == []
+
+
+def test_upgrade_datastore_160_keeps_dynamic_tariff_and_renames_fixed_hours(mock_pub):
+    uc = UpdateConfig()
+    fixed = {"type": "fixed_hours", "name": "Feste Tarifstunden (z.b. §14a EnWG Modul3)",
+             "configuration": {"default_price": 0.0001, "tariffs": [{"price": 0.0002}]}}
+    grid_fee = {"type": "fixed_hours", "name": "Feste Tarifstunden (z.b. §14a EnWG Modul3)",
+                "configuration": {"default_price": 0.00005, "tariffs": []}}
+    uc.all_received_topics = _topics_160(0.0003, 0.00015, 0.0002, fixed, grid_fee)
+
+    uc.upgrade_datastore_160()
+
+    tariff = uc.all_received_topics["openWB/optional/ep/flexible_tariff/provider"]
+    assert tariff["name"] == "Fester Stromtarif (auch HT/NT)"
+    assert tariff["configuration"] == fixed["configuration"]
+    fee = uc.all_received_topics["openWB/optional/ep/grid_fee/provider"]
+    assert fee["name"] == "Feste Netzentgelte (z.B. §14a EnWG Modul 3)"
+    assert fee["configuration"] == grid_fee["configuration"]
+
+
+def test_upgrade_datastore_160_uses_defaults_if_prices_missing(mock_pub):
+    uc = UpdateConfig()
+    uc.all_received_topics = {"openWB/system/datastore_version": [158]}
+
+    uc.upgrade_datastore_160()
+
+    topics = uc.all_received_topics
+    assert topics["openWB/general/prices/cost_mode"] == "mix"
+    assert topics["openWB/optional/ep/pv_price/provider"]["configuration"]["default_price"] == 0.00015
+    assert topics["openWB/optional/ep/bat_price/provider"]["configuration"]["default_price"] == 0.0002

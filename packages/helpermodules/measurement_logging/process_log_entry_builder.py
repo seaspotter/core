@@ -49,18 +49,15 @@ def create_entry(sh_log_data: Optional[LegacySmartHomeLogData], previous_entry: 
     current_timestamp = int(timecheck.create_timestamp())
 
     try:
-        prices = data.data.general_data.data.prices
-        try:
-            grid_price = data.data.optional_data.ep_get_current_price()
-            fault_state = max(data.data.optional_data.data.electricity_pricing.flexible_tariff.get.fault_state,
-                              data.data.optional_data.data.electricity_pricing.grid_fee.get.fault_state)
-        except Exception:
-            grid_price = prices.grid
-            fault_state = 0
-        prices_dict = {"grid": grid_price,
-                       "pv": prices.pv,
-                       "bat": prices.bat,
-                       "cp": prices.cp,
+        optional = data.data.optional_data
+        fault_state = 0
+        if optional.data.electricity_pricing.configured:
+            fault_state = max(optional.data.electricity_pricing.flexible_tariff.get.fault_state,
+                              optional.data.electricity_pricing.grid_fee.get.fault_state)
+        prices_dict = {"grid": optional.get_current_price("grid"),
+                       "pv": optional.get_current_price("pv"),
+                       "bat": optional.get_current_price("bat"),
+                       "cp": data.data.general_data.data.prices.cp,
                        "fault_state": fault_state}
     except Exception:
         log.exception("Fehler im Werte-Logging-Modul für Preise")
