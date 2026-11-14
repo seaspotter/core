@@ -5,6 +5,7 @@ from typing import Type
 class ComponentType(Enum):
     BACKUP_CLOUD = "backup_cloud"
     BAT = "bat"
+    BAT_PRICE = "bat_price"
     CHARGEPOINT = "cp"
     CONSUMER = "consumer"
     COUNTER = "counter"
@@ -12,6 +13,7 @@ class ComponentType(Enum):
     GRID_FEE = "grid_tariff"
     INVERTER = "inverter"
     IO = "io"
+    PV_PRICE = "pv_price"
     VEHICLE = "vehicle"
 
 
@@ -31,7 +33,12 @@ def special_to_general_type_mapping(component_type: str) -> ComponentType:
 
 
 def type_to_topic_mapping(component_type: str) -> str:
-    if "bat" in component_type:
+    # vor "bat", da "bat_price" den Teilstring "bat" enthält
+    if ComponentType.BAT_PRICE.value in component_type:
+        return "optional/ep/bat_price"
+    elif ComponentType.PV_PRICE.value in component_type:
+        return "optional/ep/pv_price"
+    elif "bat" in component_type:
         return "bat"
     elif "consumer" in component_type:
         return "consumer"
@@ -81,6 +88,10 @@ def component_type_to_readable_text(component_type: ComponentType):
         return "Wechselrichter"
     elif component_type == ComponentType.IO:
         return "IO-Geräte"
+    elif component_type == ComponentType.PV_PRICE:
+        return "PV-Preis"
+    elif component_type == ComponentType.BAT_PRICE:
+        return "Speicher-Preis"
     elif component_type == ComponentType.VEHICLE:
         return "Fahrzeug"
     else:

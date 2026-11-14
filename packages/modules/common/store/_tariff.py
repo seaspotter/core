@@ -45,6 +45,27 @@ def get_grid_fee_value_store() -> ValueStore[TariffState]:
     return LoggingValueStore(GridFeeValueStore())
 
 
+class SourcePriceValueStore(ValueStore[TariffState]):
+    def __init__(self, tariff_type: str):
+        self.tariff_type = tariff_type
+
+    def set(self, state: TariffState) -> None:
+        self.state = state
+
+    def update(self):
+        prices = self.state.prices
+        pub_to_broker(f"openWB/set/optional/ep/{self.tariff_type}/get/prices", prices)
+        log.debug(f"published {self.tariff_type} prices list to MQTT having {len(prices)} entries")
+
+
+def get_pv_price_value_store() -> ValueStore[TariffState]:
+    return LoggingValueStore(SourcePriceValueStore("pv_price"))
+
+
+def get_bat_price_value_store() -> ValueStore[TariffState]:
+    return LoggingValueStore(SourcePriceValueStore("bat_price"))
+
+
 class PriceValueStore(ValueStore[TariffState]):
     def __init__(self):
         pass

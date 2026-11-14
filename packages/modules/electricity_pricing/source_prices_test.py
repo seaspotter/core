@@ -1,0 +1,10 @@
+from modules.electricity_pricing.bat_prices.fixed_hours.tariff import device_descriptor as bat_descriptor
+from modules.electricity_pricing.pv_prices.fixed_hours.tariff import device_descriptor as pv_descriptor
+
+
+def test_source_price_descriptors_are_fixed_hours_with_own_names():
+    pv = pv_descriptor.configuration_factory()
+    bat = bat_descriptor.configuration_factory()
+
+    assert (pv.type, pv.name) == ("fixed_hours", "Fester PV-Preis")
+    assert (bat.type, bat.name) == ("fixed_hours", "Fester Speicher-Preis")

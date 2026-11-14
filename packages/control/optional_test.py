@@ -533,3 +533,43 @@ class TestForecastModule:
 
         assert opt.data.forecast.get.values == {"1": 1.0}
         assert opt.data.forecast.get.today_kwh == 5.0
+
+
+@pytest.mark.parametrize(
+    "source, prices, now_ts, expected",
+    [
+        pytest.param("pv", {"100": 0.1, "200": 0.2, "300": 0.3}, 250, 0.2, id="pv_latest_slot_not_after_now"),
+        pytest.param("bat", {"100": 0.1, "200": 0.2}, 100, 0.1, id="bat_slot_starts_now"),
+        pytest.param("pv", {"300": 0.3}, 250, 0.00015, id="pv_only_future_slots_falls_back"),
+        pytest.param("bat", {}, 250, 0.0002, id="bat_no_prices_falls_back"),
+    ]
+)
+def test_get_current_price_source(monkeypatch, source, prices, now_ts, expected):
+    opt = Optional()
+    getattr(opt.data.electricity_pricing, f"{source}_price").get.prices = prices
+    monkeypatch.setattr(timecheck, "create_timestamp", Mock(return_value=now_ts))
+
+    assert opt.get_current_price(source) == expected
+
+
+@pytest.mark.parametrize("configured, expected", [
+    pytest.param(True, 0.123, id="tariff_price"),
+    pytest.param(False, 0.0003, id="no_provider_falls_back"),
+])
+def test_get_current_price_grid(monkeypatch, configured, expected):
+    opt = Optional()
+    opt.data.electricity_pricing.configured = configured
+    if configured:
+        monkeypatch.setattr(opt, "ep_get_current_price", Mock(return_value=0.123))
+
+    assert opt.get_current_price("grid") == expected
+
+
+@pytest.mark.parametrize("source", ["pv_price", "bat_price"])
+def test_et_price_update_required_for_source_price_without_tariff(monkeypatch, source):
+    opt = Optional()
+    setattr(opt, f"_{source}_module", Mock())
+    getattr(opt.data.electricity_pricing, source).get.next_query_time = 100
+    monkeypatch.setattr(timecheck, "create_timestamp", Mock(return_value=200))
+
+    assert opt.et_price_update_required() is True

@@ -9,19 +9,22 @@ from datetime import datetime
 
 from control import data
 from control.ocpp import OcppMixin
-from control.optional_data import FlexibleTariff, ForecastGet, GridFee, OptionalData, PricingGet
+from control.optional_data import BatPrice, FlexibleTariff, ForecastGet, GridFee, OptionalData, PricingGet, PvPrice
 from helpermodules import hardware_configuration
 from helpermodules.constants import NO_ERROR
 from helpermodules.pub import Pub
 from helpermodules import timecheck
 from helpermodules.utils import thread_handler
 from modules.common.configurable_forecast import ConfigurableForecast
-from modules.common.configurable_tariff import ConfigurableFlexibleTariff, ConfigurableGridFee
+from modules.common.configurable_tariff import (ConfigurableBatPrice, ConfigurableFlexibleTariff,
+                                                ConfigurableGridFee, ConfigurablePvPrice)
 from modules.common.configurable_monitoring import ConfigurableMonitoring
 
 log = logging.getLogger(__name__)
 AS_EURO_PER_KWH = 1000.0  # Umrechnung von €/Wh in €/kWh
 MQTT_PREFIX = "openWB/set/optional/ep"
+# Rückfallwerte in €/Wh, solange kein Preisanbieter bzw. keine Preisliste vorliegt
+FALLBACK_PRICES = {"grid": 0.0003, "pv": 0.00015, "bat": 0.0002}
 
 
 class Optional(OcppMixin):
@@ -30,6 +33,8 @@ class Optional(OcppMixin):
             self.data = OptionalData()
             self._flexible_tariff_module: TypingOptional[ConfigurableFlexibleTariff] = None
             self._grid_fee_module: TypingOptional[ConfigurableGridFee] = None
+            self._pv_price_module: TypingOptional[ConfigurablePvPrice] = None
+            self._bat_price_module: TypingOptional[ConfigurableBatPrice] = None
             self._forecast_module: TypingOptional[ConfigurableForecast] = None
             self.monitoring_module: TypingOptional[ConfigurableMonitoring] = None
             self.data.dc_charging = hardware_configuration.get_hardware_configuration_setting("dc_charging")
@@ -101,6 +106,39 @@ class Optional(OcppMixin):
             self._reset_state(self.data.electricity_pricing.grid_fee)
         self._grid_fee_module = value
         self._set_ep_configured()
+
+    @property
+    def pv_price_module(self) -> TypingOptional[ConfigurablePvPrice]:
+        return self._pv_price_module
+
+    @pv_price_module.setter
+    def pv_price_module(self, value: TypingOptional[ConfigurablePvPrice]):
+        if (value is None or
+                (self._pv_price_module and value and
+                 self._pv_price_module.config != value.config)):
+            self.data.electricity_pricing.pv_price.get = PricingGet()
+            self._reset_source_price_state(self.data.electricity_pricing.pv_price)
+        self._pv_price_module = value
+
+    @property
+    def bat_price_module(self) -> TypingOptional[ConfigurableBatPrice]:
+        return self._bat_price_module
+
+    @bat_price_module.setter
+    def bat_price_module(self, value: TypingOptional[ConfigurableBatPrice]):
+        if (value is None or
+                (self._bat_price_module and value and
+                 self._bat_price_module.config != value.config)):
+            self.data.electricity_pricing.bat_price.get = PricingGet()
+            self._reset_source_price_state(self.data.electricity_pricing.bat_price)
+        self._bat_price_module = value
+
+    def _reset_source_price_state(self, module: Union[PvPrice, BatPrice]):
+        """PV- und Speicherpreis fließen nicht in den kombinierten Strompreis (ep/get/prices) ein."""
+        Pub().pub(f"{MQTT_PREFIX}/{module.name}/get/fault_state", 0)
+        Pub().pub(f"{MQTT_PREFIX}/{module.name}/get/fault_str", NO_ERROR)
+        Pub().pub(f"{MQTT_PREFIX}/{module.name}/get/prices", {})
+        Pub().pub(f"{MQTT_PREFIX}/{module.name}/get/next_query_time", None)
 
     def _set_ep_configured(self):
         if self._grid_fee_module or self._flexible_tariff_module:
@@ -206,6 +244,9 @@ class Optional(OcppMixin):
                               remove(ep.grid_fee.get.prices,
                                      last_active_timestamp=int(max(ep.get.prices.keys()))
                                      if ep.get.prices else 0))
+            for module, source in ((self._pv_price_module, ep.pv_price), (self._bat_price_module, ep.bat_price)):
+                if module:
+                    Pub().pub(f"{MQTT_PREFIX}/{source.name}/get/prices", remove(source.get.prices))
         except Exception as e:
             log.exception("Fehler beim Entfernen veralteter Preise: %s", e)
 
@@ -219,6 +260,21 @@ class Optional(OcppMixin):
             return first
         else:
             raise Exception("Kein Anbieter für strompreisbasiertes Laden konfiguriert.")
+
+    def get_current_price(self, source: str) -> float:
+        """Aktueller Preis in €/Wh für die Energiequelle "grid", "pv" oder "bat".
+        Liegt kein Preis vor, wird der Rückfallwert aus FALLBACK_PRICES verwendet."""
+        try:
+            if source == "grid":
+                return self.ep_get_current_price()
+            prices = getattr(self.data.electricity_pricing, f"{source}_price").get.prices
+            now = timecheck.create_timestamp()
+            current = max((float(timestamp) for timestamp in prices if float(timestamp) <= now), default=None)
+            if current is None:
+                raise Exception(f"Keine Preisdaten für {source} vorhanden.")
+            return next(price for timestamp, price in prices.items() if float(timestamp) == current)
+        except Exception:
+            return FALLBACK_PRICES[source]
 
     def forecast_get_current_value(self) -> TypingOptional[float]:
         """Liefert den aktuellen Prognosewert. Anders als bei den Strompreisen enthält
@@ -295,7 +351,8 @@ class Optional(OcppMixin):
             log.exception("Fehler im Optional-Modul: %s", e)
             return []
 
-    def _is_et_price_update_required_for_module(self, module: Union[FlexibleTariff, GridFee]) -> bool:
+    def _is_et_price_update_required_for_module(
+            self, module: Union[FlexibleTariff, GridFee, PvPrice, BatPrice]) -> bool:
         if module.get.next_query_time is None:
             return True
         now = timecheck.create_timestamp()
@@ -309,6 +366,10 @@ class Optional(OcppMixin):
 
     def et_price_update_required(self) -> bool:
         self._set_ep_configured()
+        ep = self.data.electricity_pricing
+        if ((self._pv_price_module is not None and self._is_et_price_update_required_for_module(ep.pv_price)) or
+                (self._bat_price_module is not None and self._is_et_price_update_required_for_module(ep.bat_price))):
+            return True
         if self.data.electricity_pricing.configured is False:
             return False
         if len(self.data.electricity_pricing.get.prices) == 0:

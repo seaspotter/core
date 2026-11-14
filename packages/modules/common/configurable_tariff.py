@@ -207,3 +207,23 @@ class ConfigurableGridFee(ConfigurableTariff):
         self.fault_state = FaultState(ComponentInfo(None, config.name, ComponentType.GRID_FEE.value))
         super().__init__(config, component_initializer, OptionalData().electricity_pricing.grid_fee.get,
                          tariff_type="grid_fee")
+
+
+class ConfigurablePvPrice(ConfigurableTariff):
+    def __init__(self,
+                 config: T_TARIFF_CONFIG,
+                 component_initializer: Callable[[], float]) -> None:
+        self.store = store.get_pv_price_value_store()
+        self.fault_state = FaultState(ComponentInfo(None, config.name, ComponentType.PV_PRICE.value))
+        super().__init__(config, component_initializer, OptionalData().electricity_pricing.pv_price.get,
+                         tariff_type="pv_price")
+
+
+class ConfigurableBatPrice(ConfigurableTariff):
+    def __init__(self,
+                 config: T_TARIFF_CONFIG,
+                 component_initializer: Callable[[], float]) -> None:
+        self.store = store.get_bat_price_value_store()
+        self.fault_state = FaultState(ComponentInfo(None, config.name, ComponentType.BAT_PRICE.value))
+        super().__init__(config, component_initializer, OptionalData().electricity_pricing.bat_price.get,
+                         tariff_type="bat_price")

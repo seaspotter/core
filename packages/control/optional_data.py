@@ -87,6 +87,34 @@ def get_grid_fee_factory() -> GridFee:
     return GridFee()
 
 
+def pv_price_get_factory() -> PricingGet:
+    return create_pricing_get_with_topics("ep/pv_price")
+
+
+def bat_price_get_factory() -> PricingGet:
+    return create_pricing_get_with_topics("ep/bat_price")
+
+
+@dataclass
+class PvPrice:
+    get: PricingGet = field(default_factory=pv_price_get_factory)
+    name: str = field(default="pv_price")
+
+
+def get_pv_price_factory() -> PvPrice:
+    return PvPrice()
+
+
+@dataclass
+class BatPrice:
+    get: PricingGet = field(default_factory=bat_price_get_factory)
+    name: str = field(default="bat_price")
+
+
+def get_bat_price_factory() -> BatPrice:
+    return BatPrice()
+
+
 @dataclass
 class ElectricityPricingGet:
     _prices: Dict = field(default_factory=empty_dict_factory, metadata={"topic": "ep/prices"})
@@ -109,6 +137,8 @@ class ElectricityPricing:
     configured: bool = field(default=False, metadata={"topic": "ep/configured"})
     flexible_tariff: FlexibleTariff = field(default_factory=get_flexible_tariff_factory)
     grid_fee: GridFee = field(default_factory=get_grid_fee_factory)
+    pv_price: PvPrice = field(default_factory=get_pv_price_factory)
+    bat_price: BatPrice = field(default_factory=get_bat_price_factory)
     get: ElectricityPricingGet = field(default_factory=electricity_pricing_get_factory)
 
 
