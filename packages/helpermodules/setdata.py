@@ -907,6 +907,10 @@ class SetData:
                     self._validate_value(msg, int, [(0, 2)])
                 elif re.search(f"{pricing_regex}get/next_query_time$", msg.topic) is not None:
                     self._validate_value(msg, int)
+                elif re.search(f"{pricing_regex}get/last_update_time$", msg.topic) is not None:
+                    self._validate_value(msg, int)
+                elif re.search(f"{pricing_regex}get/force_update$", msg.topic) is not None:
+                    self._validate_value(msg, bool)
                 elif re.search(f"{pricing_regex}get/fault_str$", msg.topic) is not None:
                     self._validate_value(msg, str)
             elif "openWB/set/optional/ep/get/prices" in msg.topic:

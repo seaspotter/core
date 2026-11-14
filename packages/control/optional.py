@@ -139,6 +139,8 @@ class Optional(OcppMixin):
         Pub().pub(f"{MQTT_PREFIX}/{module.name}/get/fault_str", NO_ERROR)
         Pub().pub(f"{MQTT_PREFIX}/{module.name}/get/prices", {})
         Pub().pub(f"{MQTT_PREFIX}/{module.name}/get/next_query_time", None)
+        Pub().pub(f"{MQTT_PREFIX}/{module.name}/get/last_update_time", 0)
+        Pub().pub(f"{MQTT_PREFIX}/{module.name}/get/force_update", False)
 
     def _set_ep_configured(self):
         if self._grid_fee_module or self._flexible_tariff_module:
@@ -156,6 +158,8 @@ class Optional(OcppMixin):
             Pub().pub(f"openWB/set/optional/ep/{module.name}/get/fault_str", NO_ERROR)
         Pub().pub(f"openWB/set/optional/ep/{module.name}/get/prices", {})
         Pub().pub(f"openWB/set/optional/ep/{module.name}/get/next_query_time", None)
+        Pub().pub(f"openWB/set/optional/ep/{module.name}/get/last_update_time", 0)
+        Pub().pub(f"openWB/set/optional/ep/{module.name}/get/force_update", False)
         Pub().pub("openWB/set/optional/ep/get/prices", {})
 
     def monitoring_start(self):
@@ -353,7 +357,7 @@ class Optional(OcppMixin):
 
     def _is_et_price_update_required_for_module(
             self, module: Union[FlexibleTariff, GridFee, PvPrice, BatPrice]) -> bool:
-        if module.get.next_query_time is None:
+        if module.get.force_update or module.get.next_query_time is None:
             return True
         now = timecheck.create_timestamp()
         next_query_formatted = datetime.fromtimestamp(module.get.next_query_time).strftime("%Y%m%d-%H:%M:%S")

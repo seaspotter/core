@@ -573,3 +573,16 @@ def test_et_price_update_required_for_source_price_without_tariff(monkeypatch, s
     monkeypatch.setattr(timecheck, "create_timestamp", Mock(return_value=200))
 
     assert opt.et_price_update_required() is True
+
+
+@pytest.mark.parametrize("source", ["pv_price", "bat_price", "flexible_tariff", "grid_fee"])
+def test_et_price_update_required_on_force_update(monkeypatch, source):
+    opt = Optional()
+    setattr(opt, f"_{source}_module", Mock())
+    getattr(opt.data.electricity_pricing, source).get.next_query_time = 1000
+    getattr(opt.data.electricity_pricing, source).get.force_update = True
+    opt.data.electricity_pricing.configured = True
+    opt.data.electricity_pricing.get.prices = {"1": 0.1}
+    monkeypatch.setattr(timecheck, "create_timestamp", Mock(return_value=100))
+
+    assert opt.et_price_update_required() is True

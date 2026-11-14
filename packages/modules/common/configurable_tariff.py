@@ -56,20 +56,34 @@ class ConfigurableTariff(Generic[T_TARIFF_CONFIG]):
 
     def update(self) -> None:
         if hasattr(self, "_component_updater"):
-            if self.get.next_query_time is None or self.get.next_query_time <= timecheck.create_timestamp():
-                log.debug(f"Tarifaktualisierung für {self.tariff_type}")
+            force_update = bool(self.get.force_update)
+            if (force_update or self.get.next_query_time is None or
+                    self.get.next_query_time <= timecheck.create_timestamp()):
+                log.debug(f"Tarifaktualisierung für {self.tariff_type}" + (" (manuell)" if force_update else ""))
                 try:
                     # reraise=True, sonst verschluckt __exit__ die Exception vor dem except-Block (siehe #3703)
                     with SingleComponentUpdateContext(self.fault_state, reraise=True):
                         tariff_state, timeslot_length_seconds = self.__update_et_provider_data()
                         self.__store_and_publish_updated_data(tariff_state)
+                        self.__set_last_update_time()
                         self.__finalize_update_status(timeslot_length_seconds, tariff_state)
                 except Exception as e:
                     log.exception(f"Fehler beim Aktualisieren der Tarifdaten {e}")
                     self._delay_next_query()
+                finally:
+                    self._clear_force_update_request()
             else:
                 log.info(f"nächste Tarifaktualisierung für {self.tariff_type}" +
                          f" um {datetime.fromtimestamp(self.get.next_query_time)}")
+
+    def __set_last_update_time(self) -> None:
+        self.get.last_update_time = int(timecheck.create_timestamp())
+        Pub().pub(f"openWB/set/optional/ep/{self.tariff_type}/get/last_update_time", self.get.last_update_time)
+
+    def _clear_force_update_request(self) -> None:
+        if self.get.force_update:
+            self.get.force_update = False
+            Pub().pub(f"openWB/set/optional/ep/{self.tariff_type}/get/force_update", False)
 
     def __update_et_provider_data(self) -> tuple[TariffState, int]:
         tariff_state = self.__call_component_updater()

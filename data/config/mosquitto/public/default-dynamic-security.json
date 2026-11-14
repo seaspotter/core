@@ -1473,6 +1473,30 @@
 				},
 				{
 					"acltype": "publishClientSend",
+					"topic": "openWB/set/optional/ep/bat_price/get/force_update",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientSend",
+					"topic": "openWB/set/optional/ep/pv_price/get/force_update",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientSend",
+					"topic": "openWB/set/optional/ep/grid_fee/get/force_update",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientSend",
+					"topic": "openWB/set/optional/ep/flexible_tariff/get/force_update",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientSend",
 					"topic": "openWB/set/optional/ep/flexible_tariff/provider",
 					"priority": 0,
 					"allow": true

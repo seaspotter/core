@@ -57,7 +57,7 @@ def create_entry(sh_log_data: Optional[LegacySmartHomeLogData], previous_entry: 
         prices_dict = {"grid": optional.get_current_price("grid"),
                        "pv": optional.get_current_price("pv"),
                        "bat": optional.get_current_price("bat"),
-                       "cp": data.data.general_data.data.prices.cp,
+                       "cp": 0,  # Energie aus anderen Ladepunkten wird nicht berechnet
                        "fault_state": fault_state}
     except Exception:
         log.exception("Fehler im Werte-Logging-Modul für Preise")
