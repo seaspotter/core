@@ -1469,7 +1469,7 @@
 		{
 			"rolename": "electricity-prices-configuration-access",
 			"textname": "Zugang zu den Energiekosten",
-			"textdescription": "Erlaubt den Zugang zu den Energiekosten (Stromtarif, Netzentgelte, PV-, Speicher- und Einspeisepreis, Abrechnung der Ladekosten).",
+			"textdescription": "Erlaubt den Zugang zu den Energiekosten (Stromtarif, Netzentgelte, PV-Preis, Speicherpreis und Einspeisevergütung, Abrechnung der Ladekosten).",
 			"acls": [
 				{
 					"acltype": "publishClientSend",

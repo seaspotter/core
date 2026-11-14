@@ -5,4 +5,4 @@ from modules.electricity_pricing.flexible_tariffs.fixed_hours.config import Fixe
 
 @dataclass
 class FixedHoursFeedInPrice(FixedHoursTariff):
-    name: str = "Fester Einspeisepreis"
+    name: str = "Feste Einspeisevergütung"
