@@ -30,8 +30,8 @@ log = logging.getLogger(__name__)
 DISPLAY_NAMES = {
     "flexible_tariff": "Stromtarif",
     "grid_fee": "Netzentgelte",
-    "pv_price": "PV-Preis",
-    "bat_price": "Speicher-Preis",
+    "pv_price": "Preis für Erzeugung",
+    "bat_price": "Preis für Speicherentladung",
     "feed_in_price": "Einspeisevergütung",
 }
 
@@ -172,16 +172,17 @@ class ConfigurableTariff(Generic[T_TARIFF_CONFIG]):
         # jede zuvor gesetzte Warnung/Fehler sofort wieder (siehe #3703)
         if tariff_state.prices is None or len(tariff_state.prices) < 2:
             self.fault_state.error(
-                f"Nicht genug Preiseinträge für {self.display_name}, um die Zeitschrittlänge zu berechnen.")
+                f"Nicht genug Preiseinträge ({self.display_name}), um die Zeitschrittlänge zu berechnen.")
             return
         if self.__is_tomorrow_price_missing_after_late_hour(tariff_state):
             self.fault_state.warning(
-                f"Noch keine aktuellen Preise für {self.display_name} erhalten - "
+                f"Noch keine aktuellen Preise ({self.display_name}) erhalten - "
                 "der Anbieter liefert bisher keine Daten für den Folgetag.")
             return
         expected_time_slots = int(24 * ONE_HOUR_SECONDS / timeslot_length_seconds)
         expected = f' (erwartet: {expected_time_slots})' if len(tariff_state.prices) < expected_time_slots else ''
-        self.fault_state.no_error(f'Preisliste {self.display_name}: {len(tariff_state.prices)} Einträge{expected}.')
+        self.fault_state.no_error(
+            f'{self.display_name}: {len(tariff_state.prices)} Einträge in der Preisliste{expected}.')
 
     def __is_tomorrow_price_missing_after_late_hour(self, tariff_state: TariffState) -> bool:
         now = datetime.now()

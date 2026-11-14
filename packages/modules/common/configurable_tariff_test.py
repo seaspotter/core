@@ -381,7 +381,7 @@ def test_status_message_uses_readable_name(monkeypatch: pytest.MonkeyPatch, tari
     tariff.update()
 
     assert tariff.fault_state.fault_state == FaultStateLevel.NO_ERROR
-    assert tariff.fault_state.fault_str.startswith(f"Preisliste {expected_name}: 2 Einträge")
+    assert tariff.fault_state.fault_str.startswith(f"{expected_name}: 2 Einträge in der Preisliste")
     assert "flexible_tariff" not in tariff.fault_state.fault_str
     assert "grid_fee" not in tariff.fault_state.fault_str
 

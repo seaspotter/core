@@ -4302,8 +4302,10 @@ class UpdateConfig:
             grid_fee["name"] = "Feste Netzentgelte (z.B. §14a EnWG Modul 3)"
             modified_topics[grid_fee_topic] = grid_fee
 
-        modified_topics["openWB/optional/ep/pv_price/provider"] = fixed_price_provider("Fester PV-Preis", pv)
-        modified_topics["openWB/optional/ep/bat_price/provider"] = fixed_price_provider("Fester Speicher-Preis", bat)
+        modified_topics["openWB/optional/ep/pv_price/provider"] = fixed_price_provider(
+            "Fester Preis für Erzeugung", pv)
+        modified_topics["openWB/optional/ep/bat_price/provider"] = fixed_price_provider(
+            "Fester Preis für Speicherentladung", bat)
         modified_topics["openWB/general/prices/cost_mode"] = (
             "fixed" if not tariff_configured and grid == pv == bat else "mix")
         modified_topics["openWB/general/prices/fixed_price"] = grid

@@ -827,8 +827,8 @@ def test_upgrade_datastore_160_uses_defaults_if_prices_missing(mock_pub):
 
 
 @pytest.mark.parametrize("source, name, price", [
-    pytest.param("pv_price", "Fester PV-Preis", 0.00015, id="pv"),
-    pytest.param("bat_price", "Fester Speicher-Preis", 0.0002, id="bat"),
+    pytest.param("pv_price", "Fester Preis für Erzeugung", 0.00015, id="pv"),
+    pytest.param("bat_price", "Fester Preis für Speicherentladung", 0.0002, id="bat"),
     pytest.param("feed_in_price", "Feste Einspeisevergütung", 0.00008, id="feed_in"),
 ])
 def test_default_source_price_providers(source, name, price):

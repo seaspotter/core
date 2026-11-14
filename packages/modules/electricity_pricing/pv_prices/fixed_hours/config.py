@@ -5,4 +5,4 @@ from modules.electricity_pricing.timebased_tariffs.fixed_hours.config import Fix
 
 @dataclass
 class FixedHoursPvPrice(FixedHoursTariff):
-    name: str = "Fester PV-Preis"
+    name: str = "Fester Preis für Erzeugung"

@@ -5,4 +5,4 @@ from modules.electricity_pricing.timebased_tariffs.fixed_hours.config import Fix
 
 @dataclass
 class FixedHoursBatPrice(FixedHoursTariff):
-    name: str = "Fester Speicher-Preis"
+    name: str = "Fester Preis für Speicherentladung"

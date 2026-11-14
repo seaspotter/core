@@ -94,9 +94,9 @@ def component_type_to_readable_text(component_type: ComponentType):
     elif component_type == ComponentType.FEED_IN_PRICE:
         return "Einspeisevergütung"
     elif component_type == ComponentType.PV_PRICE:
-        return "PV-Preis"
+        return "Preis für Erzeugung"
     elif component_type == ComponentType.BAT_PRICE:
-        return "Speicher-Preis"
+        return "Preis für Speicherentladung"
     elif component_type == ComponentType.VEHICLE:
         return "Fahrzeug"
     else:
