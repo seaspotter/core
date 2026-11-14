@@ -56,7 +56,7 @@ class ConfigurableTariff(Generic[T_TARIFF_CONFIG]):
 
     def update(self) -> None:
         if hasattr(self, "_component_updater"):
-            force_update = bool(self.get.force_update)
+            force_update = self._is_force_update_requested()
             if (force_update or self.get.next_query_time is None or
                     self.get.next_query_time <= timecheck.create_timestamp()):
                 log.debug(f"Tarifaktualisierung für {self.tariff_type}" + (" (manuell)" if force_update else ""))
@@ -71,7 +71,8 @@ class ConfigurableTariff(Generic[T_TARIFF_CONFIG]):
                     log.exception(f"Fehler beim Aktualisieren der Tarifdaten {e}")
                     self._delay_next_query()
                 finally:
-                    self._clear_force_update_request()
+                    if force_update:
+                        self._clear_force_update_request()
             else:
                 log.info(f"nächste Tarifaktualisierung für {self.tariff_type}" +
                          f" um {datetime.fromtimestamp(self.get.next_query_time)}")
@@ -80,10 +81,15 @@ class ConfigurableTariff(Generic[T_TARIFF_CONFIG]):
         self.get.last_update_time = int(timecheck.create_timestamp())
         Pub().pub(f"openWB/set/optional/ep/{self.tariff_type}/get/last_update_time", self.get.last_update_time)
 
+    def _is_force_update_requested(self) -> bool:
+        """Der Auslöser wird per MQTT in die globale SubData-Instanz geschrieben. self.get ist eine eigene Instanz
+        des Moduls und bekommt davon nichts mit."""
+        from helpermodules import subdata
+        electricity_pricing = subdata.SubData.optional_data.data.electricity_pricing
+        return bool(getattr(electricity_pricing, self.tariff_type).get.force_update)
+
     def _clear_force_update_request(self) -> None:
-        if self.get.force_update:
-            self.get.force_update = False
-            Pub().pub(f"openWB/set/optional/ep/{self.tariff_type}/get/force_update", False)
+        Pub().pub(f"openWB/set/optional/ep/{self.tariff_type}/get/force_update", False)
 
     def __update_et_provider_data(self) -> tuple[TariffState, int]:
         tariff_state = self.__call_component_updater()

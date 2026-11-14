@@ -377,18 +377,28 @@ def test_update_sets_last_update_time(monkeypatch: pytest.MonkeyPatch):
     assert tariff.get.last_update_time == int(fixed_now.timestamp())
 
 
+def _request_force_update(monkeypatch: pytest.MonkeyPatch, tariff_type: str = "flexible_tariff") -> Mock:
+    """Setzt den Auslöser wie der MQTT-Handler in der globalen SubData-Instanz und liefert den Pub-Mock."""
+    from helpermodules import subdata
+    pricing = subdata.SubData.optional_data.data.electricity_pricing
+    monkeypatch.setattr(getattr(pricing, tariff_type).get, "force_update", True)
+    pub = Mock()
+    monkeypatch.setattr(configurable_tariff, "Pub", Mock(return_value=pub))
+    return pub
+
+
 def test_force_update_fetches_before_next_query_time_and_is_cleared(monkeypatch: pytest.MonkeyPatch):
     fixed_now = datetime(2022, 5, 16, 13, 40, 0)
     _patch_now(monkeypatch, fixed_now)
     updater = Mock(return_value=TariffState(prices={"1652700000": 10.72e-05, "1652703600": 11.0e-05}))
     tariff = ConfigurableFlexibleTariff(AwattarTariff(), Mock(return_value=updater))
     tariff.get.next_query_time = int(fixed_now.timestamp()) + 3600  # noch nicht fällig
-    tariff.get.force_update = True
+    pub = _request_force_update(monkeypatch)
 
     tariff.update()
 
     updater.assert_called_once()
-    assert tariff.get.force_update is False
+    pub.pub.assert_any_call("openWB/set/optional/ep/flexible_tariff/get/force_update", False)
 
 
 def test_force_update_is_cleared_after_failed_fetch(monkeypatch: pytest.MonkeyPatch):
@@ -396,11 +406,25 @@ def test_force_update_is_cleared_after_failed_fetch(monkeypatch: pytest.MonkeyPa
     _patch_now(monkeypatch, fixed_now)
     tariff = ConfigurableFlexibleTariff(AwattarTariff(), Mock(return_value=Mock(side_effect=Exception("boom"))))
     tariff.get.next_query_time = int(fixed_now.timestamp()) + 3600
+    pub = _request_force_update(monkeypatch)
+
+    tariff.update()
+
+    pub.pub.assert_any_call("openWB/set/optional/ep/flexible_tariff/get/force_update", False)
+
+
+def test_force_update_only_counts_from_global_subdata_instance(monkeypatch: pytest.MonkeyPatch):
+    # self.get ist eine eigene Instanz des Moduls, der MQTT-Auslöser landet nur in der SubData-Instanz
+    fixed_now = datetime(2022, 5, 16, 13, 40, 0)
+    _patch_now(monkeypatch, fixed_now)
+    updater = Mock()
+    tariff = ConfigurableFlexibleTariff(AwattarTariff(), Mock(return_value=updater))
+    tariff.get.next_query_time = int(fixed_now.timestamp()) + 3600
     tariff.get.force_update = True
 
     tariff.update()
 
-    assert tariff.get.force_update is False
+    updater.assert_not_called()
 
 
 def test_no_fetch_without_force_update_before_next_query_time(monkeypatch: pytest.MonkeyPatch):

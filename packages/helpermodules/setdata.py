@@ -818,7 +818,7 @@ class SetData:
             elif "openWB/set/general/prices/fixed_price" in msg.topic:
                 self._validate_value(msg, float, [(0, 99.99)])
             elif "openWB/set/general/prices/cost_mode" in msg.topic:
-                self._validate_value(msg, str, collection=["mix", "grid", "fixed"])
+                self._validate_value(msg, str)
             elif "openWB/set/general/range_unit" in msg.topic:
                 self._validate_value(msg, str)
             elif "openWB/set/general/temporary_charge_templates_active" in msg.topic:
