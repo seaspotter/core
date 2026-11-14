@@ -915,7 +915,8 @@ class SetData:
                     self._validate_value(msg, str)
             elif "openWB/set/optional/ep/get/prices" in msg.topic:
                 self._validate_value(msg, "json")
-            elif "openWB/set/optional/ep/configured" in msg.topic:
+            elif ("openWB/set/optional/ep/configured" in msg.topic or
+                  "openWB/set/optional/ep/controllable" in msg.topic):
                 self._validate_value(msg, bool)
             elif "openWB/set/optional/forecast/configured" in msg.topic:
                 self._validate_value(msg, bool)

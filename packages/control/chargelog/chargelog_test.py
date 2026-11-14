@@ -35,7 +35,7 @@ def test_create_entry_logs_all_price_channels(mock_data, monkeypatch):
     now = 1652683000
     monkeypatch.setattr(process_log_entry_builder.timecheck, "create_timestamp", Mock(return_value=now))
     pricing = data.data.optional_data.data.electricity_pricing
-    pricing.configured = True
+    data.data.optional_data._flexible_tariff_module = Mock()  # ein Stromtarif ist eingerichtet
     pricing.get.prices = {str(now - 100): 0.00031, str(now + 800): 0.0009}
     pricing.pv_price.get.prices = {str(now - 100): 0.00011, str(now + 800): 0.0009}
     pricing.bat_price.get.prices = {str(now - 100): 0.00022}

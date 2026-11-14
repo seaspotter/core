@@ -44,6 +44,7 @@ from modules.common.configurable_forecast import ConfigurableForecastProvider
 from modules.common.configurable_tariff import (ConfigurableBatPrice, ConfigurableFeedInPrice,
                                                 ConfigurableFlexibleTariff, ConfigurableGridFee,
                                                 ConfigurablePvPrice)
+from modules.electricity_pricing.tariff_packages import tariff_module_path
 from modules.common.simcount.simcounter_state import SimCounterState
 from modules.internal_chargepoint_handler.internal_chargepoint_handler_config import (
     GlobalHandlerData, InternalChargepoint, RfidData)
@@ -801,8 +802,7 @@ class SubData:
                         if config_dict["type"] is None:
                             var.flexible_tariff_module = None
                         else:
-                            mod = importlib.import_module(
-                                f".electricity_pricing.flexible_tariffs.{config_dict['type']}.tariff", "modules")
+                            mod = importlib.import_module(tariff_module_path(config_dict["type"]), "modules")
                             config = dataclass_from_dict(mod.device_descriptor.configuration_factory, config_dict)
                             var.flexible_tariff_module = ConfigurableFlexibleTariff(
                                 config, mod.create_electricity_tariff)

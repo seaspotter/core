@@ -3,6 +3,10 @@ from unittest.mock import Mock
 import pytest
 from helpermodules import timecheck
 from control.optional import Optional
+from modules.electricity_pricing.fixed_tariffs.fixed_price.config import FixedPriceTariff
+from modules.electricity_pricing.flexible_tariffs.awattar.config import AwattarTariff
+from modules.electricity_pricing.grid_fees.fixed_hours.config import FixedHoursGridFee
+from modules.electricity_pricing.timebased_tariffs.fixed_hours.config import FixedHoursTariff
 
 
 @dataclass
@@ -241,7 +245,7 @@ def test_ep_get_loading_hours(granularity,
     # setup
     opt = Optional()
     opt.data.electricity_pricing.get.prices = price_list
-    opt.data.electricity_pricing.configured = True
+    opt.data.electricity_pricing.controllable = True
     monkeypatch.setattr(
         timecheck,
         "create_timestamp",
@@ -266,7 +270,7 @@ def test_ep_get_loading_hours(granularity,
 )
 def test_et_charging_allowed(monkeypatch, provider_available, current_price, max_price, expected):
     opt = Optional()
-    opt.data.electricity_pricing.configured = provider_available
+    opt.data.electricity_pricing.controllable = provider_available
     if provider_available:
         monkeypatch.setattr(opt, "ep_get_current_price", Mock(return_value=current_price))
     result = opt.ep_is_charging_allowed_price_threshold(max_price)
@@ -275,7 +279,7 @@ def test_et_charging_allowed(monkeypatch, provider_available, current_price, max
 
 def test_et_charging_allowed_exception(monkeypatch):
     opt = Optional()
-    opt.data.electricity_pricing.configured = True
+    opt.data.electricity_pricing.controllable = True
     monkeypatch.setattr(opt, "ep_get_current_price", Mock(side_effect=Exception))
     result = opt.ep_is_charging_allowed_price_threshold(0.15)
     assert result is False
@@ -436,14 +440,14 @@ def test_et_charging_available(now_ts, provider_available, price_list, selected_
     )
     opt = Optional()
     opt.data.electricity_pricing.get.prices = price_list
-    opt.data.electricity_pricing.configured = provider_available
+    opt.data.electricity_pricing.controllable = provider_available
     result = opt.ep_is_charging_allowed_hours_list(selected_hours)
     assert result == expected
 
 
 def test_et_charging_available_exception(monkeypatch):
     opt = Optional()
-    opt.data.electricity_pricing.configured = True
+    opt.data.electricity_pricing.controllable = True
 
     opt.data.electricity_pricing.get.prices = {}  # empty prices list raises exception
     result = opt.ep_is_charging_allowed_hours_list([])
@@ -490,7 +494,7 @@ def test_et_price_update_required(monkeypatch, flexible_tariff, grid_fee, curren
     opt.data.electricity_pricing.grid_fee = None
 
     monkeypatch.setattr(timecheck, "create_timestamp", Mock(return_value=current_timestamp))
-    opt.data.electricity_pricing.configured = True
+    opt.data.electricity_pricing.controllable = True
 
     # execution
     result = opt.et_price_update_required()
@@ -560,7 +564,7 @@ def test_get_current_price_source(monkeypatch, source, prices, now_ts, expected)
 ])
 def test_get_current_price_grid(monkeypatch, configured, expected):
     opt = Optional()
-    opt.data.electricity_pricing.configured = configured
+    opt.data.electricity_pricing.controllable = configured
     if configured:
         monkeypatch.setattr(opt, "ep_get_current_price", Mock(return_value=0.123))
 
@@ -583,8 +587,62 @@ def test_et_price_update_required_on_force_update(monkeypatch, source):
     setattr(opt, f"_{source}_module", Mock())
     getattr(opt.data.electricity_pricing, source).get.next_query_time = 1000
     getattr(opt.data.electricity_pricing, source).get.force_update = True
-    opt.data.electricity_pricing.configured = True
+    opt.data.electricity_pricing.controllable = True
     opt.data.electricity_pricing.get.prices = {"1": 0.1}
     monkeypatch.setattr(timecheck, "create_timestamp", Mock(return_value=100))
 
     assert opt.et_price_update_required() is True
+
+
+def _optional_with_tariff(config) -> Optional:
+    opt = Optional()
+    opt._flexible_tariff_module = Mock(config=config)
+    opt._set_ep_configured()
+    return opt
+
+
+@pytest.mark.parametrize("config, expected_controllable", [
+    pytest.param(FixedPriceTariff(), False, id="fixed_price_does_not_enable_price_based_charging"),
+    pytest.param(FixedHoursTariff(), True, id="time_dependent_enables_price_based_charging"),
+    pytest.param(AwattarTariff(), True, id="dynamic_enables_price_based_charging"),
+])
+def test_controllable_depends_on_price_type_of_tariff(config, expected_controllable):
+    opt = _optional_with_tariff(config)
+
+    assert opt.data.electricity_pricing.configured is True
+    assert opt.data.electricity_pricing.controllable is expected_controllable
+
+
+def test_grid_fee_enables_price_based_charging_even_with_fixed_tariff():
+    opt = _optional_with_tariff(FixedPriceTariff())
+    opt._grid_fee_module = Mock(config=FixedHoursGridFee())
+    opt._set_ep_configured()
+
+    assert opt.data.electricity_pricing.controllable is True
+
+
+def test_no_provider_is_neither_configured_nor_controllable():
+    opt = Optional()
+    opt._set_ep_configured()
+
+    assert opt.data.electricity_pricing.configured is False
+    assert opt.data.electricity_pricing.controllable is False
+
+
+def test_fixed_tariff_does_not_limit_price_based_charging():
+    opt = _optional_with_tariff(FixedPriceTariff())
+    opt.data.electricity_pricing.get.prices = {"100": 0.0009}  # viel teurer als jede Preisgrenze
+
+    assert opt.ep_is_charging_allowed_price_threshold(0.0002) is True
+    assert opt.ep_is_charging_allowed_hours_list([]) is False  # ohne Anbieter wird kein Zeitslot ausgewählt
+
+
+def test_fixed_tariff_prices_are_still_fetched_and_used(monkeypatch):
+    opt = _optional_with_tariff(FixedPriceTariff())
+    opt.data.electricity_pricing.flexible_tariff.get.next_query_time = None
+    opt.data.electricity_pricing.get.prices = {"100": 0.00027, "200": 0.00027}
+    monkeypatch.setattr(timecheck, "create_timestamp", Mock(return_value=150))
+
+    assert opt.et_price_update_required() is True
+    assert opt.ep_get_current_price() == 0.00027
+    assert opt.get_current_price("grid") == 0.00027

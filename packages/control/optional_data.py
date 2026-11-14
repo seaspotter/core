@@ -153,6 +153,7 @@ def electricity_pricing_get_factory() -> ElectricityPricingGet:
 @dataclass
 class ElectricityPricing:
     configured: bool = field(default=False, metadata={"topic": "ep/configured"})
+    controllable: bool = field(default=False, metadata={"topic": "ep/controllable"})
     flexible_tariff: FlexibleTariff = field(default_factory=get_flexible_tariff_factory)
     grid_fee: GridFee = field(default_factory=get_grid_fee_factory)
     pv_price: PvPrice = field(default_factory=get_pv_price_factory)

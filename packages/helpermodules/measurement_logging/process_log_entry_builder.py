@@ -51,7 +51,7 @@ def create_entry(sh_log_data: Optional[LegacySmartHomeLogData], previous_entry: 
     try:
         optional = data.data.optional_data
         fault_state = 0
-        if optional.data.electricity_pricing.configured:
+        if optional.flexible_tariff_module is not None or optional.grid_fee_module is not None:
             fault_state = max(optional.data.electricity_pricing.flexible_tariff.get.fault_state,
                               optional.data.electricity_pricing.grid_fee.get.fault_state)
         prices_dict = {"grid": optional.get_current_price("grid"),

@@ -97,7 +97,7 @@
 			</InfoItem> 
 			-->
 
-			<InfoItem v-if="etData.active" heading="max. Preis:" class="grid-col-4">
+			<InfoItem v-if="etData.controllable" heading="max. Preis:" class="grid-col-4">
 				<DisplayButton v-if="cp.etActive" @click="openSettings('#prSettings')">
 					<span class="maxprice"
 						>{{

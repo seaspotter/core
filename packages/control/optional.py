@@ -18,6 +18,7 @@ from helpermodules import timecheck
 from helpermodules.utils import thread_handler
 from modules.common.configurable_forecast import ConfigurableForecast
 from modules.common.configurable_tariff import ConfigurableFlexibleTariff, ConfigurableGridFee
+from modules.electricity_pricing.price_type import PriceType, get_price_type
 from modules.common.configurable_monitoring import ConfigurableMonitoring
 
 log = logging.getLogger(__name__)
@@ -139,13 +140,22 @@ class Optional(OcppMixin):
         Pub().pub(f"{MQTT_PREFIX}/{module.name}/get/last_update_time", 0)
         Pub().pub(f"{MQTT_PREFIX}/{module.name}/get/force_update", False)
 
+    def _has_price_provider(self) -> bool:
+        """Es gibt einen Stromtarif oder Netzentgelte, deren Preise abgerufen, geloggt und angezeigt werden."""
+        return self._flexible_tariff_module is not None or self._grid_fee_module is not None
+
     def _set_ep_configured(self):
-        if self._grid_fee_module or self._flexible_tariff_module:
-            self.data.electricity_pricing.configured = True
-            Pub().pub("openWB/set/optional/ep/configured", True)
-        else:
-            self.data.electricity_pricing.configured = False
-            Pub().pub("openWB/set/optional/ep/configured", False)
+        """configured: Es gibt einen Stromtarif oder Netzentgelte, die Preise werden angezeigt und geloggt.
+        controllable: Preisbasiertes Laden ist möglich. Das ist nur bei zeitabhängigen oder dynamischen Preisen
+        sinnvoll, ein fester Stromtarif liefert nur den Preis für die Ladekosten."""
+        has_price_based_tariff = (self._flexible_tariff_module is not None and
+                                  get_price_type(self._flexible_tariff_module.config) != PriceType.FIXED)
+        configured = self._has_price_provider()
+        controllable = self._grid_fee_module is not None or has_price_based_tariff
+        self.data.electricity_pricing.configured = configured
+        self.data.electricity_pricing.controllable = controllable
+        Pub().pub("openWB/set/optional/ep/configured", configured)
+        Pub().pub("openWB/set/optional/ep/controllable", controllable)
 
     def _reset_state(self, module: Union[FlexibleTariff, GridFee]):
         if (module.get.fault_state != 0 or module.get.fault_str != NO_ERROR):
@@ -181,7 +191,7 @@ class Optional(OcppMixin):
         False: Der aktuelle Zeitpunkt liegt in keinem günstigen Zeitslot
         """
         try:
-            if self.data.electricity_pricing.configured:
+            if self.data.electricity_pricing.controllable:
                 return self.__get_current_timeslot_start() in selected_hours
             else:
                 log.debug("Prüfe strompreisbasiertes Laden: Nicht konfiguriert")
@@ -199,7 +209,7 @@ class Optional(OcppMixin):
         False: Preis liegt darüber
         """
         try:
-            if self.data.electricity_pricing.configured:
+            if self.data.electricity_pricing.controllable:
                 current_price = self.ep_get_current_price()
                 log.info("Prüfe strompreisbasiertes Laden mit Preisgrenze %.5f €/kWh, aktueller Preis: %.5f €/kWh",
                          max_price * AS_EURO_PER_KWH,
@@ -233,7 +243,7 @@ class Optional(OcppMixin):
                     (int(timestamp) <= last_active_timestamp if last_active_timestamp > 0 else True)}
 
         try:
-            if self.data.electricity_pricing.configured:
+            if self._has_price_provider():
                 ep = self.data.electricity_pricing
                 #  prices lists are updated in optional_data via mqtt listener
                 if len(ep.get.prices) > 0:
@@ -257,7 +267,7 @@ class Optional(OcppMixin):
         return int(timestamp)
 
     def ep_get_current_price(self) -> float:
-        if self.data.electricity_pricing.configured:
+        if self._has_price_provider():
             first = self.__get_first_entry()[1]
             return first
         else:
@@ -308,7 +318,7 @@ class Optional(OcppMixin):
         ------
         list: Key des Dictionary (Unix-Sekunden der günstigen Zeit-Slots)
         """
-        if self.data.electricity_pricing.configured is False:
+        if self.data.electricity_pricing.controllable is False:
             raise Exception("Kein Anbieter für strompreisbasiertes Laden konfiguriert.")
         try:
             prices = self.data.electricity_pricing.get.prices
@@ -372,7 +382,7 @@ class Optional(OcppMixin):
         if any(getattr(self, f"_{source}_module") is not None and
                self._is_et_price_update_required_for_module(getattr(ep, source)) for source in SOURCE_PRICES):
             return True
-        if self.data.electricity_pricing.configured is False:
+        if not self._has_price_provider():
             return False
         if len(self.data.electricity_pricing.get.prices) == 0:
             return True

@@ -51,7 +51,7 @@ from dataclass_utils import asdict
 from modules.common.abstract_vehicle import GeneralVehicleConfig
 from modules.electricity_pricing.bat_prices.fixed_hours.config import FixedHoursBatPrice
 from modules.electricity_pricing.feed_in_prices.fixed_hours.config import FixedHoursFeedInPrice
-from modules.electricity_pricing.flexible_tariffs.fixed_hours.config import FixedHoursTariffConfiguration
+from modules.electricity_pricing.timebased_tariffs.fixed_hours.config import FixedHoursTariffConfiguration
 from modules.electricity_pricing.pv_prices.fixed_hours.config import FixedHoursPvPrice
 from modules.common.component_type import ComponentType
 from modules.devices.sungrow.sungrow_sh.version import Version
@@ -424,6 +424,7 @@ class UpdateConfig:
         "^openWB/set/log/data",
 
         "^openWB/optional/ep/configured$",
+        "^openWB/optional/ep/controllable$",
         "^openWB/optional/ep/get/prices$",
         "^openWB/optional/ep/flexible_tariff/get/fault_state$",
         "^openWB/optional/ep/flexible_tariff/get/fault_str$",
@@ -4256,7 +4257,8 @@ class UpdateConfig:
     def upgrade_datastore_160(self) -> None:
         """Preise als Strompreis-Anbieter (Netz, PV, Speicher): Aus den festen Preisen openWB/general/prices/
         {grid,pv,bat} werden Anbieter (fixed_hours) und die Abrechnungsart der Ladekosten.
-        - Ohne Stromtarif wird der bisherige Netzbezugspreis als fester Stromtarif angelegt.
+        - Ohne Stromtarif wird der bisherige Netzbezugspreis als fester Stromtarif (fixed_price) angelegt. Ein fester
+          Preis schaltet das preisbasierte Laden nicht frei, das Verhalten der Regelung ändert sich dadurch nicht.
         - Waren alle drei Preise ohne Stromtarif gleich, wurde bisher mit einem festen Preis abgerechnet
           -> cost_mode fixed.
         - Die Anbieter fixed_hours bekommen ihre neuen Bezeichnungen."""
@@ -4284,9 +4286,13 @@ class UpdateConfig:
         tariff = decode_payload(tariff_payload) if tariff_payload is not None else None
         tariff_configured = isinstance(tariff, dict) and tariff.get("type") is not None
         if not tariff_configured:
-            modified_topics[tariff_topic] = fixed_price_provider("Fester Stromtarif (auch HT/NT)", grid)
+            modified_topics[tariff_topic] = {"type": "fixed_price",
+                                             "name": "Fester Stromtarif",
+                                             "official": False,
+                                             "configuration": {"default_price": grid,
+                                                               "update_hours": list(range(24))}}
         elif tariff.get("type") == "fixed_hours":
-            tariff["name"] = "Fester Stromtarif (auch HT/NT)"
+            tariff["name"] = "Zeitabhängiger Tarif (HT/NT, z.B. §14a EnWG Modul 3)"
             modified_topics[tariff_topic] = tariff
 
         grid_fee_topic = "openWB/optional/ep/grid_fee/provider"
