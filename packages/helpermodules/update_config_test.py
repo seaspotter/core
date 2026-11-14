@@ -800,3 +800,17 @@ def test_upgrade_datastore_160_uses_defaults_if_prices_missing(mock_pub):
     assert topics["openWB/general/prices/cost_mode"] == "mix"
     assert topics["openWB/optional/ep/pv_price/provider"]["configuration"]["default_price"] == 0.00015
     assert topics["openWB/optional/ep/bat_price/provider"]["configuration"]["default_price"] == 0.0002
+
+
+@pytest.mark.parametrize("source, name, price", [
+    pytest.param("pv_price", "Fester PV-Preis", 0.00015, id="pv"),
+    pytest.param("bat_price", "Fester Speicher-Preis", 0.0002, id="bat"),
+    pytest.param("feed_in_price", "Fester Einspeisepreis", 0.00008, id="feed_in"),
+])
+def test_default_source_price_providers(source, name, price):
+    provider = dict(UpdateConfig.default_topic)[f"openWB/optional/ep/{source}/provider"]
+
+    assert provider["type"] == "fixed_hours"
+    assert provider["name"] == name
+    assert provider["configuration"]["default_price"] == price
+    assert provider["configuration"]["tariffs"] == []

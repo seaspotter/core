@@ -49,6 +49,10 @@ from control.general import ChargemodeConfigSurplusVehicle, Prices
 from control.optional_data import OcppConfig
 from dataclass_utils import asdict
 from modules.common.abstract_vehicle import GeneralVehicleConfig
+from modules.electricity_pricing.bat_prices.fixed_hours.config import FixedHoursBatPrice
+from modules.electricity_pricing.feed_in_prices.fixed_hours.config import FixedHoursFeedInPrice
+from modules.electricity_pricing.flexible_tariffs.fixed_hours.config import FixedHoursTariffConfiguration
+from modules.electricity_pricing.pv_prices.fixed_hours.config import FixedHoursPvPrice
 from modules.common.component_type import ComponentType
 from modules.devices.sungrow.sungrow_sh.version import Version
 from modules.display_themes.cards.config import CardsDisplayTheme
@@ -59,20 +63,6 @@ from modules.devices.good_we.good_we.version import GoodWeVersion
 log = logging.getLogger(__name__)
 
 NO_MODULE = {"type": None, "configuration": {}}
-# Standardpreise in €/Wh
-PRICE_DEFAULT_GRID = 0.0003
-PRICE_DEFAULT_PV = 0.00015
-PRICE_DEFAULT_BAT = 0.0002
-PRICE_DEFAULT_FEED_IN = 0.00008
-
-
-def _fixed_price_provider(name: str, price: float) -> dict:
-    """Fester Preis als fixed_hours-Anbieter (ohne Zeitfenster). Bewusst nicht aus den Modul-Klassen erzeugt,
-    damit die Migration unabhängig von späteren Änderungen an diesen Klassen bleibt."""
-    return {"type": "fixed_hours",
-            "name": name,
-            "official": False,
-            "configuration": {"default_price": price, "tariffs": [], "update_hours": list(range(24))}}
 
 
 class UpdateConfig:
@@ -787,10 +777,12 @@ class UpdateConfig:
         ("openWB/internal_chargepoint/1/data/parent_cp", None),
         ("openWB/optional/ep/flexible_tariff/provider", NO_MODULE),
         ("openWB/optional/ep/grid_fee/provider", NO_MODULE),
-        ("openWB/optional/ep/pv_price/provider", _fixed_price_provider("Fester PV-Preis", PRICE_DEFAULT_PV)),
-        ("openWB/optional/ep/bat_price/provider", _fixed_price_provider("Fester Speicher-Preis", PRICE_DEFAULT_BAT)),
+        ("openWB/optional/ep/pv_price/provider",
+         asdict(FixedHoursPvPrice(configuration=FixedHoursTariffConfiguration(default_price=0.00015)))),
+        ("openWB/optional/ep/bat_price/provider",
+         asdict(FixedHoursBatPrice(configuration=FixedHoursTariffConfiguration(default_price=0.0002)))),
         ("openWB/optional/ep/feed_in_price/provider",
-         _fixed_price_provider("Fester Einspeisepreis", PRICE_DEFAULT_FEED_IN)),
+         asdict(FixedHoursFeedInPrice(configuration=FixedHoursTariffConfiguration(default_price=0.00008)))),
         ("openWB/optional/forecast/configured", False),
         ("openWB/optional/forecast/provider", NO_MODULE),
         ("openWB/optional/int_display/active", True),
@@ -4273,9 +4265,18 @@ class UpdateConfig:
             value = decode_payload(payload) if payload is not None else None
             return default if value is None else value
 
-        grid = price("grid", PRICE_DEFAULT_GRID)
-        pv = price("pv", PRICE_DEFAULT_PV)
-        bat = price("bat", PRICE_DEFAULT_BAT)
+        def fixed_price_provider(name: str, price: float) -> dict:
+            """Fester Preis als fixed_hours-Anbieter (ohne Zeitfenster). Bewusst nicht aus den Modul-Klassen erzeugt,
+            damit die Migration unabhängig von späteren Änderungen an diesen Klassen bleibt."""
+            return {"type": "fixed_hours",
+                    "name": name,
+                    "official": False,
+                    "configuration": {"default_price": price, "tariffs": [], "update_hours": list(range(24))}}
+
+        # bisherige Standardpreise in €/Wh
+        grid = price("grid", 0.0003)
+        pv = price("pv", 0.00015)
+        bat = price("bat", 0.0002)
         modified_topics = {}
 
         tariff_topic = "openWB/optional/ep/flexible_tariff/provider"
@@ -4283,7 +4284,7 @@ class UpdateConfig:
         tariff = decode_payload(tariff_payload) if tariff_payload is not None else None
         tariff_configured = isinstance(tariff, dict) and tariff.get("type") is not None
         if not tariff_configured:
-            modified_topics[tariff_topic] = _fixed_price_provider("Fester Stromtarif (auch HT/NT)", grid)
+            modified_topics[tariff_topic] = fixed_price_provider("Fester Stromtarif (auch HT/NT)", grid)
         elif tariff.get("type") == "fixed_hours":
             tariff["name"] = "Fester Stromtarif (auch HT/NT)"
             modified_topics[tariff_topic] = tariff
@@ -4295,8 +4296,8 @@ class UpdateConfig:
             grid_fee["name"] = "Feste Netzentgelte (z.B. §14a EnWG Modul 3)"
             modified_topics[grid_fee_topic] = grid_fee
 
-        modified_topics["openWB/optional/ep/pv_price/provider"] = _fixed_price_provider("Fester PV-Preis", pv)
-        modified_topics["openWB/optional/ep/bat_price/provider"] = _fixed_price_provider("Fester Speicher-Preis", bat)
+        modified_topics["openWB/optional/ep/pv_price/provider"] = fixed_price_provider("Fester PV-Preis", pv)
+        modified_topics["openWB/optional/ep/bat_price/provider"] = fixed_price_provider("Fester Speicher-Preis", bat)
         modified_topics["openWB/general/prices/cost_mode"] = (
             "fixed" if not tariff_configured and grid == pv == bat else "mix")
         modified_topics["openWB/general/prices/fixed_price"] = grid
