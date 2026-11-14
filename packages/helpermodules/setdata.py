@@ -895,7 +895,7 @@ class SetData:
             enthält Topic und Payload
         """
         try:
-            pricing_regex = "openWB/set/optional/ep/(flexible_tariff|grid_fee|pv_price|bat_price)/"
+            pricing_regex = "openWB/set/optional/ep/(flexible_tariff|grid_fee|pv_price|bat_price|feed_in_price)/"
             if re.search(pricing_regex, msg.topic) is not None:
                 if re.search(f"{pricing_regex}provider$", msg.topic) is not None:
                     self._validate_value(msg, "json")

@@ -66,6 +66,10 @@ def get_bat_price_value_store() -> ValueStore[TariffState]:
     return LoggingValueStore(SourcePriceValueStore("bat_price"))
 
 
+def get_feed_in_price_value_store() -> ValueStore[TariffState]:
+    return LoggingValueStore(SourcePriceValueStore("feed_in_price"))
+
+
 class PriceValueStore(ValueStore[TariffState]):
     def __init__(self):
         pass

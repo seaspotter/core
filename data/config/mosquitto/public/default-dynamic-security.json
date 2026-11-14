@@ -1412,6 +1412,18 @@
 				},
 				{
 					"acltype": "publishClientReceive",
+					"topic": "openWB/optional/ep/feed_in_price/get/+",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientReceive",
+					"topic": "openWB/optional/ep/feed_in_price/provider",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientReceive",
 					"topic": "openWB/optional/ep/flexible_tariff/get/+",
 					"priority": 0,
 					"allow": true
@@ -1468,6 +1480,18 @@
 				{
 					"acltype": "publishClientSend",
 					"topic": "openWB/set/general/prices/fixed_price",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientSend",
+					"topic": "openWB/set/optional/ep/feed_in_price/provider",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientSend",
+					"topic": "openWB/set/optional/ep/feed_in_price/get/force_update",
 					"priority": 0,
 					"allow": true
 				},
@@ -1606,6 +1630,18 @@
 				{
 					"acltype": "publishClientReceive",
 					"topic": "openWB/system/security/access/ElectricityPricesConfiguration",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientReceive",
+					"topic": "openWB/optional/ep/feed_in_price/provider",
+					"priority": 0,
+					"allow": true
+				},
+				{
+					"acltype": "publishClientReceive",
+					"topic": "openWB/optional/ep/feed_in_price/get/+",
 					"priority": 0,
 					"allow": true
 				}

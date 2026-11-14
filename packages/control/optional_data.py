@@ -99,6 +99,10 @@ def bat_price_get_factory() -> PricingGet:
     return create_pricing_get_with_topics("ep/bat_price")
 
 
+def feed_in_price_get_factory() -> PricingGet:
+    return create_pricing_get_with_topics("ep/feed_in_price")
+
+
 @dataclass
 class PvPrice:
     get: PricingGet = field(default_factory=pv_price_get_factory)
@@ -117,6 +121,16 @@ class BatPrice:
 
 def get_bat_price_factory() -> BatPrice:
     return BatPrice()
+
+
+@dataclass
+class FeedInPrice:
+    get: PricingGet = field(default_factory=feed_in_price_get_factory)
+    name: str = field(default="feed_in_price")
+
+
+def get_feed_in_price_factory() -> FeedInPrice:
+    return FeedInPrice()
 
 
 @dataclass
@@ -143,6 +157,7 @@ class ElectricityPricing:
     grid_fee: GridFee = field(default_factory=get_grid_fee_factory)
     pv_price: PvPrice = field(default_factory=get_pv_price_factory)
     bat_price: BatPrice = field(default_factory=get_bat_price_factory)
+    feed_in_price: FeedInPrice = field(default_factory=get_feed_in_price_factory)
     get: ElectricityPricingGet = field(default_factory=electricity_pricing_get_factory)
 
 

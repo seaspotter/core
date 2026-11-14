@@ -241,3 +241,13 @@ class ConfigurableBatPrice(ConfigurableTariff):
         self.fault_state = FaultState(ComponentInfo(None, config.name, ComponentType.BAT_PRICE.value))
         super().__init__(config, component_initializer, OptionalData().electricity_pricing.bat_price.get,
                          tariff_type="bat_price")
+
+
+class ConfigurableFeedInPrice(ConfigurableTariff):
+    def __init__(self,
+                 config: T_TARIFF_CONFIG,
+                 component_initializer: Callable[[], float]) -> None:
+        self.store = store.get_feed_in_price_value_store()
+        self.fault_state = FaultState(ComponentInfo(None, config.name, ComponentType.FEED_IN_PRICE.value))
+        super().__init__(config, component_initializer, OptionalData().electricity_pricing.feed_in_price.get,
+                         tariff_type="feed_in_price")

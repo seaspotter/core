@@ -41,7 +41,8 @@ from modules.common.abstract_vehicle import CalculatedSocState, GeneralVehicleCo
 from modules.common.component_type import ComponentType
 from modules.common.configurable_backup_cloud import ConfigurableBackupCloud
 from modules.common.configurable_forecast import ConfigurableForecastProvider
-from modules.common.configurable_tariff import (ConfigurableBatPrice, ConfigurableFlexibleTariff, ConfigurableGridFee,
+from modules.common.configurable_tariff import (ConfigurableBatPrice, ConfigurableFeedInPrice,
+                                                ConfigurableFlexibleTariff, ConfigurableGridFee,
                                                 ConfigurablePvPrice)
 from modules.common.simcount.simcounter_state import SimCounterState
 from modules.internal_chargepoint_handler.internal_chargepoint_handler_config import (
@@ -822,8 +823,8 @@ class SubData:
                         var.data.electricity_pricing.grid_fee.get.prices = decode_payload(msg.payload)
                     elif re.search("/optional/ep/grid_fee/get/", msg.topic) is not None:
                         self.set_json_payload_class(var.data.electricity_pricing.grid_fee.get, msg)
-                elif re.search("/optional/ep/(pv_price|bat_price)/", msg.topic) is not None:
-                    source = re.search("/optional/ep/(pv_price|bat_price)/", msg.topic).group(1)
+                elif re.search("/optional/ep/(pv_price|bat_price|feed_in_price)/", msg.topic) is not None:
+                    source = re.search("/optional/ep/(pv_price|bat_price|feed_in_price)/", msg.topic).group(1)
                     source_data = getattr(var.data.electricity_pricing, source)
                     if re.search(f"/optional/ep/{source}/provider$", msg.topic) is not None:
                         config_dict = decode_payload(msg.payload)
@@ -833,7 +834,9 @@ class SubData:
                             mod = importlib.import_module(
                                 f".electricity_pricing.{source}s.{config_dict['type']}.tariff", "modules")
                             config = dataclass_from_dict(mod.device_descriptor.configuration_factory, config_dict)
-                            configurable = (ConfigurablePvPrice if source == "pv_price" else ConfigurableBatPrice)
+                            configurable = {"pv_price": ConfigurablePvPrice,
+                                            "bat_price": ConfigurableBatPrice,
+                                            "feed_in_price": ConfigurableFeedInPrice}[source]
                             setattr(var, f"{source}_module", configurable(config, mod.create_electricity_tariff))
                     elif re.search(f"/optional/ep/{source}/get/prices", msg.topic) is not None:
                         source_data.get.prices = decode_payload(msg.payload)

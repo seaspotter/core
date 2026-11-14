@@ -31,6 +31,35 @@ def test_create_entry_optional_smarthome(mock_data, sh_values):
     broker_client.assert_not_called()
 
 
+def test_create_entry_logs_all_price_channels(mock_data, monkeypatch):
+    now = 1652683000
+    monkeypatch.setattr(process_log_entry_builder.timecheck, "create_timestamp", Mock(return_value=now))
+    pricing = data.data.optional_data.data.electricity_pricing
+    pricing.configured = True
+    pricing.get.prices = {str(now - 100): 0.00031, str(now + 800): 0.0009}
+    pricing.pv_price.get.prices = {str(now - 100): 0.00011, str(now + 800): 0.0009}
+    pricing.bat_price.get.prices = {str(now - 100): 0.00022}
+    pricing.feed_in_price.get.prices = {str(now - 100): 0.00008}
+
+    with patch.object(process_log_entry_builder, "BrokerClient"):
+        entry = process_log_entry_builder.create_entry(None, None)
+
+    assert entry["prices"]["grid"] == 0.00031
+    assert entry["prices"]["pv"] == 0.00011
+    assert entry["prices"]["bat"] == 0.00022
+    assert entry["prices"]["feed_in"] == 0.00008
+    assert entry["prices"]["cp"] == 0
+    assert entry["prices"]["fault_state"] == 0
+
+
+def test_create_entry_logs_fallback_prices_without_providers(mock_data):
+    with patch.object(process_log_entry_builder, "BrokerClient"):
+        entry = process_log_entry_builder.create_entry(None, None)
+
+    assert entry["prices"] == {"grid": 0.0003, "pv": 0.00015, "bat": 0.0002, "feed_in": 0.00008, "cp": 0,
+                               "fault_state": 0}
+
+
 def mock_daily_log(monkeypatch):
     daily_log = {"entries": [{'bat': {'all': {'exported': 2000, 'imported': 2000, 'soc': 100},
                                       'bat2': {'exported': 2000, 'imported': 2000, 'soc': 100}},

@@ -9,6 +9,7 @@ class ComponentType(Enum):
     CHARGEPOINT = "cp"
     CONSUMER = "consumer"
     COUNTER = "counter"
+    FEED_IN_PRICE = "feed_in_price"
     FLEXIBLE_TARIFF = "dynamic_tariff"
     GRID_FEE = "grid_tariff"
     INVERTER = "inverter"
@@ -34,7 +35,9 @@ def special_to_general_type_mapping(component_type: str) -> ComponentType:
 
 def type_to_topic_mapping(component_type: str) -> str:
     # vor "bat", da "bat_price" den Teilstring "bat" enthält
-    if ComponentType.BAT_PRICE.value in component_type:
+    if ComponentType.FEED_IN_PRICE.value in component_type:
+        return "optional/ep/feed_in_price"
+    elif ComponentType.BAT_PRICE.value in component_type:
         return "optional/ep/bat_price"
     elif ComponentType.PV_PRICE.value in component_type:
         return "optional/ep/pv_price"
@@ -88,6 +91,8 @@ def component_type_to_readable_text(component_type: ComponentType):
         return "Wechselrichter"
     elif component_type == ComponentType.IO:
         return "IO-Geräte"
+    elif component_type == ComponentType.FEED_IN_PRICE:
+        return "Einspeisepreis"
     elif component_type == ComponentType.PV_PRICE:
         return "PV-Preis"
     elif component_type == ComponentType.BAT_PRICE:

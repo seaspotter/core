@@ -248,6 +248,7 @@ class Loadvars:
                 append_thread_set_values("grid_fee")
                 append_thread_set_values("pv_price")
                 append_thread_set_values("bat_price")
+                append_thread_set_values("feed_in_price")
                 joined_thread_handler(threads_set_values, None)
                 wait_for_module_update_completed(self.event_module_update_completed,
                                                  "openWB/set/optional/ep/module_update_completed")

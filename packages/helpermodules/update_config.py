@@ -63,6 +63,7 @@ NO_MODULE = {"type": None, "configuration": {}}
 PRICE_DEFAULT_GRID = 0.0003
 PRICE_DEFAULT_PV = 0.00015
 PRICE_DEFAULT_BAT = 0.0002
+PRICE_DEFAULT_FEED_IN = 0.00008
 
 
 def _fixed_price_provider(name: str, price: float) -> dict:
@@ -462,6 +463,13 @@ class UpdateConfig:
         "^openWB/optional/ep/bat_price/get/force_update$",
         "^openWB/optional/ep/bat_price/get/last_update_time$",
         "^openWB/optional/ep/bat_price/provider$",
+        "^openWB/optional/ep/feed_in_price/get/fault_state$",
+        "^openWB/optional/ep/feed_in_price/get/fault_str$",
+        "^openWB/optional/ep/feed_in_price/get/force_update$",
+        "^openWB/optional/ep/feed_in_price/get/last_update_time$",
+        "^openWB/optional/ep/feed_in_price/get/next_query_time$",
+        "^openWB/optional/ep/feed_in_price/get/prices$",
+        "^openWB/optional/ep/feed_in_price/provider$",
         "^openWB/optional/forecast/configured$",
         "^openWB/optional/forecast/provider$",
         "^openWB/optional/forecast/get/fault_state$",
@@ -781,6 +789,8 @@ class UpdateConfig:
         ("openWB/optional/ep/grid_fee/provider", NO_MODULE),
         ("openWB/optional/ep/pv_price/provider", _fixed_price_provider("Fester PV-Preis", PRICE_DEFAULT_PV)),
         ("openWB/optional/ep/bat_price/provider", _fixed_price_provider("Fester Speicher-Preis", PRICE_DEFAULT_BAT)),
+        ("openWB/optional/ep/feed_in_price/provider",
+         _fixed_price_provider("Fester Einspeisepreis", PRICE_DEFAULT_FEED_IN)),
         ("openWB/optional/forecast/configured", False),
         ("openWB/optional/forecast/provider", NO_MODULE),
         ("openWB/optional/int_display/active", True),

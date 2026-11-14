@@ -542,6 +542,8 @@ class TestForecastModule:
         pytest.param("bat", {"100": 0.1, "200": 0.2}, 100, 0.1, id="bat_slot_starts_now"),
         pytest.param("pv", {"300": 0.3}, 250, 0.00015, id="pv_only_future_slots_falls_back"),
         pytest.param("bat", {}, 250, 0.0002, id="bat_no_prices_falls_back"),
+        pytest.param("feed_in", {"100": 0.00008, "200": 0.0001}, 150, 0.00008, id="feed_in_slot"),
+        pytest.param("feed_in", {}, 150, 0.00008, id="feed_in_no_prices_falls_back"),
     ]
 )
 def test_get_current_price_source(monkeypatch, source, prices, now_ts, expected):
@@ -565,7 +567,7 @@ def test_get_current_price_grid(monkeypatch, configured, expected):
     assert opt.get_current_price("grid") == expected
 
 
-@pytest.mark.parametrize("source", ["pv_price", "bat_price"])
+@pytest.mark.parametrize("source", ["pv_price", "bat_price", "feed_in_price"])
 def test_et_price_update_required_for_source_price_without_tariff(monkeypatch, source):
     opt = Optional()
     setattr(opt, f"_{source}_module", Mock())
@@ -575,7 +577,7 @@ def test_et_price_update_required_for_source_price_without_tariff(monkeypatch, s
     assert opt.et_price_update_required() is True
 
 
-@pytest.mark.parametrize("source", ["pv_price", "bat_price", "flexible_tariff", "grid_fee"])
+@pytest.mark.parametrize("source", ["pv_price", "bat_price", "feed_in_price", "flexible_tariff", "grid_fee"])
 def test_et_price_update_required_on_force_update(monkeypatch, source):
     opt = Optional()
     setattr(opt, f"_{source}_module", Mock())
