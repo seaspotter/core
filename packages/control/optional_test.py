@@ -643,3 +643,19 @@ def test_fixed_tariff_prices_are_still_fetched_and_used(monkeypatch):
     assert opt.et_price_update_required() is True
     assert opt.ep_get_current_price() == 0.00027
     assert opt.get_current_price("grid") == 0.00027
+
+
+@pytest.mark.parametrize("source", ["pv_price", "bat_price", "feed_in_price"])
+def test_remove_outdated_prices_of_source_price_without_tariff(monkeypatch, caplog, source):
+    """PV-, Speicher- und Einspeisepreis werden auch ohne Stromtarif und Netzentgelte bereinigt."""
+    opt = Optional()
+    setattr(opt, f"_{source}_module", Mock())
+    getattr(opt.data.electricity_pricing, source).get.prices = {"100": 0.1, "200": 0.2, "300": 0.3}
+    monkeypatch.setattr(timecheck, "create_timestamp", Mock(return_value=250))
+    pub = Mock()
+    monkeypatch.setattr("control.optional.Pub", Mock(return_value=pub))
+
+    opt.remove_outdated_prices()
+
+    pub.pub.assert_called_once_with(f"openWB/set/optional/ep/{source}/get/prices", {200: 0.2, 300: 0.3})
+    assert "Fehler beim Entfernen" not in caplog.text

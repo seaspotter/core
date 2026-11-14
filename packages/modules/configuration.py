@@ -165,8 +165,8 @@ def _pub_configurable_tariffs() -> None:
                             "text": dev_defaults.name,
                             "defaults": dataclass_utils.asdict(dev_defaults)
                         }
-                        if source == "flexible_tariffs":
-                            # Art der Preise, die Oberfläche zeigt zuerst die Art und dann die passenden Anbieter
+                        if package in TARIFF_PACKAGES:
+                            # Art der Preise: die Oberfläche zeigt zuerst die Art und dann die passenden Anbieter
                             entry["price_type"] = TARIFF_PACKAGES[package].value
                         tariffs.append(entry)
                     except Exception as e:

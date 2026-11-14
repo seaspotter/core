@@ -44,8 +44,8 @@ from modules.common.configurable_forecast import ConfigurableForecastProvider
 from modules.common.configurable_tariff import (ConfigurableBatPrice, ConfigurableFeedInPrice,
                                                 ConfigurableFlexibleTariff, ConfigurableGridFee,
                                                 ConfigurablePvPrice)
-from modules.electricity_pricing.tariff_packages import tariff_module_path
 from modules.common.simcount.simcounter_state import SimCounterState
+from modules.electricity_pricing.tariff_packages import tariff_module_path
 from modules.internal_chargepoint_handler.internal_chargepoint_handler_config import (
     GlobalHandlerData, InternalChargepoint, RfidData)
 from modules.vehicles.manual.config import ManualSoc

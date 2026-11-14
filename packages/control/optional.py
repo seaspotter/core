@@ -18,8 +18,8 @@ from helpermodules import timecheck
 from helpermodules.utils import thread_handler
 from modules.common.configurable_forecast import ConfigurableForecast
 from modules.common.configurable_tariff import ConfigurableFlexibleTariff, ConfigurableGridFee
-from modules.electricity_pricing.price_type import PriceType, get_price_type
 from modules.common.configurable_monitoring import ConfigurableMonitoring
+from modules.electricity_pricing.price_type import PriceType, get_price_type
 
 log = logging.getLogger(__name__)
 AS_EURO_PER_KWH = 1000.0  # Umrechnung von €/Wh in €/kWh
@@ -132,7 +132,6 @@ class Optional(OcppMixin):
     feed_in_price_module = _source_price_module_property("feed_in_price")
 
     def _reset_source_price_state(self, module: Union[PvPrice, BatPrice, FeedInPrice]):
-        """PV- und Speicherpreis fließen nicht in den kombinierten Strompreis (ep/get/prices) ein."""
         Pub().pub(f"{MQTT_PREFIX}/{module.name}/get/fault_state", 0)
         Pub().pub(f"{MQTT_PREFIX}/{module.name}/get/fault_str", NO_ERROR)
         Pub().pub(f"{MQTT_PREFIX}/{module.name}/get/prices", {})
@@ -243,8 +242,8 @@ class Optional(OcppMixin):
                     (int(timestamp) <= last_active_timestamp if last_active_timestamp > 0 else True)}
 
         try:
+            ep = self.data.electricity_pricing
             if self._has_price_provider():
-                ep = self.data.electricity_pricing
                 #  prices lists are updated in optional_data via mqtt listener
                 if len(ep.get.prices) > 0:
                     Pub().pub(f"{MQTT_PREFIX}/get/prices", remove(ep.get.prices))

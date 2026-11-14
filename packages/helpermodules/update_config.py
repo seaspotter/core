@@ -49,13 +49,13 @@ from control.general import ChargemodeConfigSurplusVehicle, Prices
 from control.optional_data import OcppConfig
 from dataclass_utils import asdict
 from modules.common.abstract_vehicle import GeneralVehicleConfig
-from modules.electricity_pricing.bat_prices.fixed_hours.config import FixedHoursBatPrice
-from modules.electricity_pricing.feed_in_prices.fixed_hours.config import FixedHoursFeedInPrice
-from modules.electricity_pricing.timebased_tariffs.fixed_hours.config import FixedHoursTariffConfiguration
-from modules.electricity_pricing.pv_prices.fixed_hours.config import FixedHoursPvPrice
 from modules.common.component_type import ComponentType
 from modules.devices.sungrow.sungrow_sh.version import Version
 from modules.display_themes.cards.config import CardsDisplayTheme
+from modules.electricity_pricing.bat_prices.fixed_hours.config import FixedHoursBatPrice
+from modules.electricity_pricing.feed_in_prices.fixed_hours.config import FixedHoursFeedInPrice
+from modules.electricity_pricing.pv_prices.fixed_hours.config import FixedHoursPvPrice
+from modules.electricity_pricing.timebased_tariffs.fixed_hours.config import FixedHoursTariffConfiguration
 from modules.io_actions.controllable_consumers.ripple_control_receiver.config import RippleControlReceiverSetup
 from modules.web_themes.koala.config import KoalaWebTheme
 from modules.devices.good_we.good_we.version import GoodWeVersion
@@ -4255,8 +4255,8 @@ class UpdateConfig:
         self._append_datastore_version(158)
 
     def upgrade_datastore_160(self) -> None:
-        """Preise als Strompreis-Anbieter (Netz, PV, Speicher): Aus den festen Preisen openWB/general/prices/
-        {grid,pv,bat} werden Anbieter (fixed_hours) und die Abrechnungsart der Ladekosten.
+        """Energiekosten: Aus den festen Preisen openWB/general/prices/{grid,pv,bat} werden Anbieter und die
+        Abrechnungsart der Ladekosten. Die Einspeisevergütung wird mit den Standardwerten angelegt.
         - Ohne Stromtarif wird der bisherige Netzbezugspreis als fester Stromtarif (fixed_price) angelegt. Ein fester
           Preis schaltet das preisbasierte Laden nicht frei, das Verhalten der Regelung ändert sich dadurch nicht.
         - Waren alle drei Preise ohne Stromtarif gleich, wurde bisher mit einem festen Preis abgerechnet
@@ -4267,7 +4267,7 @@ class UpdateConfig:
             value = decode_payload(payload) if payload is not None else None
             return default if value is None else value
 
-        def fixed_price_provider(name: str, price: float) -> dict:
+        def fixed_hours_provider(name: str, price: float) -> dict:
             """Fester Preis als fixed_hours-Anbieter (ohne Zeitfenster). Bewusst nicht aus den Modul-Klassen erzeugt,
             damit die Migration unabhängig von späteren Änderungen an diesen Klassen bleibt."""
             return {"type": "fixed_hours",
@@ -4302,9 +4302,9 @@ class UpdateConfig:
             grid_fee["name"] = "Feste Netzentgelte (z.B. §14a EnWG Modul 3)"
             modified_topics[grid_fee_topic] = grid_fee
 
-        modified_topics["openWB/optional/ep/pv_price/provider"] = fixed_price_provider(
+        modified_topics["openWB/optional/ep/pv_price/provider"] = fixed_hours_provider(
             "Fester Preis für Erzeugung", pv)
-        modified_topics["openWB/optional/ep/bat_price/provider"] = fixed_price_provider(
+        modified_topics["openWB/optional/ep/bat_price/provider"] = fixed_hours_provider(
             "Fester Preis für Speicherentladung", bat)
         modified_topics["openWB/general/prices/cost_mode"] = (
             "fixed" if not tariff_configured and grid == pv == bat else "mix")
