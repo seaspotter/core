@@ -14,7 +14,7 @@ class FixedPriceTariffConfiguration:
 class FixedPriceTariff:
     name: str = "Fester Stromtarif"
     type: str = "fixed_price"
-    official: bool = False
+    official: bool = True
     configuration: FixedPriceTariffConfiguration = field(default_factory=FixedPriceTariffConfiguration)
     # Ein fester Preis schaltet das preisbasierte Laden nicht frei
     price_type: ClassVar[PriceType] = PriceType.FIXED

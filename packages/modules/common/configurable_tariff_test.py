@@ -7,9 +7,11 @@ import pytest
 
 from modules.common.component_state import TariffState
 from modules.common import configurable_tariff
-from modules.common.configurable_tariff import ConfigurableFlexibleTariff, RETRY_BACKOFF_SECONDS
+from modules.common.configurable_tariff import (ConfigurableFlexibleTariff, ConfigurableGridFee,
+                                                RETRY_BACKOFF_SECONDS)
 from modules.common.fault_state_level import FaultStateLevel
 from modules.electricity_pricing.flexible_tariffs.awattar.config import AwattarTariff
+from modules.electricity_pricing.grid_fees.fixed_hours.config import FixedHoursGridFee
 
 
 def _patch_now(monkeypatch: pytest.MonkeyPatch, fixed_now: datetime) -> None:
@@ -362,6 +364,26 @@ def test_tomorrow_prices_present_after_late_hour_does_not_warn(monkeypatch: pyte
     tariff.update()
 
     assert tariff.fault_state.fault_state == FaultStateLevel.NO_ERROR
+
+
+@pytest.mark.parametrize("tariff_class, config, expected_name", [
+    pytest.param(ConfigurableFlexibleTariff, AwattarTariff(), "Stromtarif", id="tariff"),
+    pytest.param(ConfigurableGridFee, FixedHoursGridFee(), "Netzentgelte", id="grid_fee"),
+])
+def test_status_message_uses_readable_name(monkeypatch: pytest.MonkeyPatch, tariff_class, config, expected_name):
+    fixed_now = datetime(2022, 5, 16, 13, 40, 0)
+    _patch_now(monkeypatch, fixed_now)
+    prices = {"1652700000": 10.72e-05, "1652703600": 11.0e-05}
+    tariff = tariff_class(config, Mock(return_value=Mock(return_value=TariffState(prices=prices))))
+    tariff.tariff_update_hours = [14]  # vor der Warnung wegen fehlender Preise für den Folgetag
+    tariff.get.next_query_time = int(fixed_now.timestamp()) - 10
+
+    tariff.update()
+
+    assert tariff.fault_state.fault_state == FaultStateLevel.NO_ERROR
+    assert tariff.fault_state.fault_str.startswith(f"Preisliste {expected_name}: 2 Einträge")
+    assert "flexible_tariff" not in tariff.fault_state.fault_str
+    assert "grid_fee" not in tariff.fault_state.fault_str
 
 
 def test_update_sets_last_update_time(monkeypatch: pytest.MonkeyPatch):

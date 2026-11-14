@@ -4288,7 +4288,7 @@ class UpdateConfig:
         if not tariff_configured:
             modified_topics[tariff_topic] = {"type": "fixed_price",
                                              "name": "Fester Stromtarif",
-                                             "official": False,
+                                             "official": True,
                                              "configuration": {"default_price": grid,
                                                                "update_hours": list(range(24))}}
         elif tariff.get("type") == "fixed_hours":
