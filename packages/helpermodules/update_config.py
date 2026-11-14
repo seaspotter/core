@@ -67,7 +67,7 @@ NO_MODULE = {"type": None, "configuration": {}}
 
 class UpdateConfig:
 
-    DATASTORE_VERSION = 160
+    DATASTORE_VERSION = 159
 
     valid_topic = [
         "^openWB/bat/config/bat_control_activated$",
@@ -4254,7 +4254,7 @@ class UpdateConfig:
         self._loop_all_received_topics(upgrade)
         self._append_datastore_version(158)
 
-    def upgrade_datastore_160(self) -> None:
+    def upgrade_datastore_159(self) -> None:
         """Energiekosten: Aus den festen Preisen openWB/general/prices/{grid,pv,bat} werden Anbieter und die
         Abrechnungsart der Ladekosten. Die Einspeisevergütung wird mit den Standardwerten angelegt.
         - Ohne Stromtarif wird der bisherige Netzbezugspreis als fester Stromtarif (fixed_price) angelegt. Ein fester
@@ -4312,4 +4312,4 @@ class UpdateConfig:
 
         for topic, payload in modified_topics.items():
             self.__update_topic(topic, payload)
-        self._append_datastore_version(160)
+        self._append_datastore_version(159)

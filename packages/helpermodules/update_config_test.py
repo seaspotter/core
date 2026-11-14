@@ -746,11 +746,11 @@ NO_TARIFF = {"type": None, "configuration": {}}
         pytest.param(0.0002, 0.0002, 0.0002, {"type": "awattar", "configuration": {}}, "mix", "awattar",
                      id="tariff_all_equal_stays_mix"),
     ])
-def test_upgrade_datastore_160_prices(mock_pub, grid, pv, bat, tariff, expected_mode, expected_tariff_type):
+def test_upgrade_datastore_159_prices(mock_pub, grid, pv, bat, tariff, expected_mode, expected_tariff_type):
     uc = UpdateConfig()
     uc.all_received_topics = _topics_160(grid, pv, bat, tariff)
 
-    uc.upgrade_datastore_160()
+    uc.upgrade_datastore_159()
 
     topics = uc.all_received_topics
     assert topics["openWB/general/prices/cost_mode"] == expected_mode
@@ -758,14 +758,14 @@ def test_upgrade_datastore_160_prices(mock_pub, grid, pv, bat, tariff, expected_
     assert topics["openWB/optional/ep/flexible_tariff/provider"]["type"] == expected_tariff_type
     assert topics["openWB/optional/ep/pv_price/provider"]["configuration"]["default_price"] == pv
     assert topics["openWB/optional/ep/bat_price/provider"]["configuration"]["default_price"] == bat
-    assert topics["openWB/system/datastore_version"] == [158, 160]
+    assert topics["openWB/system/datastore_version"] == [158, 159]
 
 
-def test_upgrade_datastore_160_tariff_without_provider_gets_old_grid_price_as_fixed_price(mock_pub):
+def test_upgrade_datastore_159_tariff_without_provider_gets_old_grid_price_as_fixed_price(mock_pub):
     uc = UpdateConfig()
     uc.all_received_topics = _topics_160(0.00031, 0.00015, 0.0002, NO_TARIFF)
 
-    uc.upgrade_datastore_160()
+    uc.upgrade_datastore_159()
 
     tariff = uc.all_received_topics["openWB/optional/ep/flexible_tariff/provider"]
     assert tariff["type"] == "fixed_price"
@@ -773,29 +773,29 @@ def test_upgrade_datastore_160_tariff_without_provider_gets_old_grid_price_as_fi
     assert tariff["configuration"]["default_price"] == 0.00031
 
 
-def test_upgrade_datastore_160_missing_tariff_topic_gets_fixed_price(mock_pub):
+def test_upgrade_datastore_159_missing_tariff_topic_gets_fixed_price(mock_pub):
     uc = UpdateConfig()
     uc.all_received_topics = {"openWB/system/datastore_version": [158]}
 
-    uc.upgrade_datastore_160()
+    uc.upgrade_datastore_159()
 
     tariff = uc.all_received_topics["openWB/optional/ep/flexible_tariff/provider"]
     assert tariff["type"] == "fixed_price"
     assert tariff["configuration"]["default_price"] == 0.0003
 
 
-def test_upgrade_datastore_160_keeps_dynamic_tariff_unchanged(mock_pub):
+def test_upgrade_datastore_159_keeps_dynamic_tariff_unchanged(mock_pub):
     uc = UpdateConfig()
     energycharts = {"name": "Energy-Charts", "type": "energycharts", "official": True,
                     "configuration": {"country": "DE-LU", "surcharge": 0, "net": True, "tax": 19, "price_cap": None}}
     uc.all_received_topics = _topics_160(0.0003, 0.00015, 0.0002, dict(energycharts))
 
-    uc.upgrade_datastore_160()
+    uc.upgrade_datastore_159()
 
     assert uc.all_received_topics["openWB/optional/ep/flexible_tariff/provider"] == energycharts
 
 
-def test_upgrade_datastore_160_renames_fixed_hours_and_keeps_configuration(mock_pub):
+def test_upgrade_datastore_159_renames_fixed_hours_and_keeps_configuration(mock_pub):
     uc = UpdateConfig()
     fixed = {"type": "fixed_hours", "name": "Feste Tarifstunden (z.b. §14a EnWG Modul3)",
              "configuration": {"default_price": 0.0001, "tariffs": [{"price": 0.0002}]}}
@@ -803,7 +803,7 @@ def test_upgrade_datastore_160_renames_fixed_hours_and_keeps_configuration(mock_
                 "configuration": {"default_price": 0.00005, "tariffs": []}}
     uc.all_received_topics = _topics_160(0.0003, 0.00015, 0.0002, fixed, grid_fee)
 
-    uc.upgrade_datastore_160()
+    uc.upgrade_datastore_159()
 
     tariff = uc.all_received_topics["openWB/optional/ep/flexible_tariff/provider"]
     assert tariff["type"] == "fixed_hours"
@@ -814,11 +814,11 @@ def test_upgrade_datastore_160_renames_fixed_hours_and_keeps_configuration(mock_
     assert fee["configuration"] == grid_fee["configuration"]
 
 
-def test_upgrade_datastore_160_uses_defaults_if_prices_missing(mock_pub):
+def test_upgrade_datastore_159_uses_defaults_if_prices_missing(mock_pub):
     uc = UpdateConfig()
     uc.all_received_topics = {"openWB/system/datastore_version": [158]}
 
-    uc.upgrade_datastore_160()
+    uc.upgrade_datastore_159()
 
     topics = uc.all_received_topics
     assert topics["openWB/general/prices/cost_mode"] == "mix"
