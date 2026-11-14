@@ -46,7 +46,7 @@ class FixedHoursTariffConfiguration:
 
 @dataclass
 class FixedHoursTariff:
-    name: str = "Feste Tarifstunden (z.b. §14a EnWG Modul3)"
+    name: str = "Fester Stromtarif (auch HT/NT)"
     type: str = "fixed_hours"
     official: bool = False
     configuration: FixedHoursTariffConfiguration = field(default_factory=FixedHoursTariffConfiguration)
