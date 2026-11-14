@@ -484,7 +484,7 @@ def test_time_charging_min_bat_soc_allowed(control_activated: bool,
 
 
 @pytest.mark.parametrize(
-    "ep_configured, price_limit_activated, price_charge_activated, price_threshold_mock, expected_result",
+    "ep_controllable, price_limit_activated, price_charge_activated, price_threshold_mock, expected_result",
     [
         pytest.param(False, True, True, [True, True], True,
                      id="Preislimit aktiviert, aber kein Preis konfiguriert -> Eigenregelung -> laden"),
@@ -500,7 +500,7 @@ def test_time_charging_min_bat_soc_allowed(control_activated: bool,
                      id="beide Strompreise deaktiviert -> nicht laden"),
     ]
 )
-def test_time_charging_min_bat_soc_allowed_pricing(ep_configured: bool,
+def test_time_charging_min_bat_soc_allowed_pricing(ep_controllable: bool,
                                                    price_limit_activated: bool,
                                                    price_charge_activated: bool,
                                                    price_threshold_mock: List[bool],
@@ -513,7 +513,7 @@ def test_time_charging_min_bat_soc_allowed_pricing(ep_configured: bool,
     b.data.config.power_limit_mode = BatPowerLimitMode.MODE_CHARGE_PV_PRODUCTION.value
     b.data.config.price_limit_activated = price_limit_activated
     b.data.config.price_charge_activated = price_charge_activated
-    data.data.optional_data.data.electricity_pricing.controllable = ep_configured
+    data.data.optional_data.data.electricity_pricing.controllable = ep_controllable
     b.data.config.bat_control_activated = True
 
     monkeypatch.setattr(data.data.optional_data, "ep_is_charging_allowed_price_threshold",

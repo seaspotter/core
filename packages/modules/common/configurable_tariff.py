@@ -225,7 +225,7 @@ class ConfigurableFlexibleTariff(ConfigurableTariff):
                  config: T_TARIFF_CONFIG,
                  component_initializer: Callable[[], float]) -> None:
         self.store = store.get_flexible_tariff_value_store()
-        self.fault_state = FaultState(ComponentInfo(None, config.name, ComponentType.FLEXIBLE_TARIFF.value))
+        self.fault_state = FaultState(ComponentInfo(None, config.name, ComponentType.TARIFF.value))
         super().__init__(config, component_initializer, OptionalData().electricity_pricing.flexible_tariff.get)
 
 

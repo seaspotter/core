@@ -9,6 +9,13 @@ from modules.common.component_type import ComponentType, type_to_topic_mapping
     pytest.param(ComponentType.FEED_IN_PRICE.value, "optional/ep/feed_in_price", id="feed_in_price"),
     pytest.param("bat", "bat", id="bat_unchanged"),
     pytest.param(ComponentType.GRID_FEE.value, "optional/ep/grid_fee", id="grid_fee_unchanged"),
+    pytest.param(ComponentType.TARIFF.value, "optional/ep/flexible_tariff", id="tariff_keeps_topic"),
 ])
 def test_type_to_topic_mapping(component_type, expected):
     assert type_to_topic_mapping(component_type) == expected
+
+
+def test_tariff_type_is_not_matched_by_the_substring_of_another_type():
+    """Die Zuordnung prüft Teilstrings, der Typ des Stromtarifs darf nicht in "grid_tariff" enthalten sein."""
+    assert ComponentType.TARIFF.value not in ComponentType.GRID_FEE.value
+    assert type_to_topic_mapping(ComponentType.GRID_FEE.value) == "optional/ep/grid_fee"

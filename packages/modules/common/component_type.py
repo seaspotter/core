@@ -10,7 +10,7 @@ class ComponentType(Enum):
     CONSUMER = "consumer"
     COUNTER = "counter"
     FEED_IN_PRICE = "feed_in_price"
-    FLEXIBLE_TARIFF = "dynamic_tariff"
+    TARIFF = "electricity_tariff"
     GRID_FEE = "grid_tariff"
     INVERTER = "inverter"
     IO = "io"
@@ -49,7 +49,7 @@ def type_to_topic_mapping(component_type: str) -> str:
         return "counter"
     elif "inverter" in component_type:
         return "pv"
-    elif ComponentType.FLEXIBLE_TARIFF.value in component_type:
+    elif ComponentType.TARIFF.value in component_type:
         return "optional/ep/flexible_tariff"
     elif ComponentType.GRID_FEE.value in component_type:
         return "optional/ep/grid_fee"
@@ -83,7 +83,7 @@ def component_type_to_readable_text(component_type: ComponentType):
         return "Verbraucher"
     elif component_type == ComponentType.COUNTER:
         return "Zähler"
-    elif component_type == ComponentType.FLEXIBLE_TARIFF:
+    elif component_type == ComponentType.TARIFF:
         return "Stromtarif"
     elif component_type == ComponentType.GRID_FEE:
         return "Netzentgelt"

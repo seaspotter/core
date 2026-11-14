@@ -494,7 +494,6 @@ def test_et_price_update_required(monkeypatch, flexible_tariff, grid_fee, curren
     opt.data.electricity_pricing.grid_fee = None
 
     monkeypatch.setattr(timecheck, "create_timestamp", Mock(return_value=current_timestamp))
-    opt.data.electricity_pricing.controllable = True
 
     # execution
     result = opt.et_price_update_required()
@@ -558,14 +557,13 @@ def test_get_current_price_source(monkeypatch, source, prices, now_ts, expected)
     assert opt.get_current_price(source) == expected
 
 
-@pytest.mark.parametrize("configured, expected", [
+@pytest.mark.parametrize("has_provider, expected", [
     pytest.param(True, 0.123, id="tariff_price"),
     pytest.param(False, 0.0003, id="no_provider_falls_back"),
 ])
-def test_get_current_price_grid(monkeypatch, configured, expected):
+def test_get_current_price_grid(monkeypatch, has_provider, expected):
     opt = Optional()
-    opt.data.electricity_pricing.controllable = configured
-    if configured:
+    if has_provider:
         monkeypatch.setattr(opt, "ep_get_current_price", Mock(return_value=0.123))
 
     assert opt.get_current_price("grid") == expected
@@ -587,7 +585,6 @@ def test_et_price_update_required_on_force_update(monkeypatch, source):
     setattr(opt, f"_{source}_module", Mock())
     getattr(opt.data.electricity_pricing, source).get.next_query_time = 1000
     getattr(opt.data.electricity_pricing, source).get.force_update = True
-    opt.data.electricity_pricing.controllable = True
     opt.data.electricity_pricing.get.prices = {"1": 0.1}
     monkeypatch.setattr(timecheck, "create_timestamp", Mock(return_value=100))
 

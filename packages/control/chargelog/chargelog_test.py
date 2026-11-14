@@ -52,6 +52,31 @@ def test_create_entry_logs_all_price_channels(mock_data, monkeypatch):
     assert entry["prices"]["fault_state"] == 0
 
 
+def test_create_entry_logs_fault_state_of_provider_without_prices(mock_data):
+    """Ein fehlerhafter Anbieter ohne Preisliste: die Preise fallen zurück, der Fehler wird trotzdem geloggt."""
+    pricing = data.data.optional_data.data.electricity_pricing
+    data.data.optional_data._flexible_tariff_module = Mock()
+    pricing.flexible_tariff.get.fault_state = 2
+    data.data.optional_data._grid_fee_module = Mock()
+    pricing.grid_fee.get.fault_state = 1
+
+    with patch.object(process_log_entry_builder, "BrokerClient"):
+        entry = process_log_entry_builder.create_entry(None, None)
+
+    assert entry["prices"]["grid"] == 0.0003
+    assert entry["prices"]["fault_state"] == 2
+
+
+def test_create_entry_ignores_fault_state_without_provider(mock_data):
+    pricing = data.data.optional_data.data.electricity_pricing
+    pricing.flexible_tariff.get.fault_state = 2  # veralteter Wert, es ist kein Anbieter eingerichtet
+
+    with patch.object(process_log_entry_builder, "BrokerClient"):
+        entry = process_log_entry_builder.create_entry(None, None)
+
+    assert entry["prices"]["fault_state"] == 0
+
+
 def test_create_entry_logs_fallback_prices_without_providers(mock_data):
     with patch.object(process_log_entry_builder, "BrokerClient"):
         entry = process_log_entry_builder.create_entry(None, None)
