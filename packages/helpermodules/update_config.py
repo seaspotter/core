@@ -4287,12 +4287,12 @@ class UpdateConfig:
         tariff_configured = isinstance(tariff, dict) and tariff.get("type") is not None
         if not tariff_configured:
             modified_topics[tariff_topic] = {"type": "fixed_price",
-                                             "name": "Fester Stromtarif",
+                                             "name": "Fester Preis",
                                              "official": True,
                                              "configuration": {"default_price": grid,
                                                                "update_hours": list(range(24))}}
         elif tariff.get("type") == "fixed_hours":
-            tariff["name"] = "Zeitabhängiger Tarif (HT/NT, z.B. §14a EnWG Modul 3)"
+            tariff["name"] = "Zeitabhängiger Tarif (HT/NT)"
             modified_topics[tariff_topic] = tariff
 
         grid_fee_topic = "openWB/optional/ep/grid_fee/provider"

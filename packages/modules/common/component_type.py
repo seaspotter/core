@@ -84,7 +84,7 @@ def component_type_to_readable_text(component_type: ComponentType):
     elif component_type == ComponentType.COUNTER:
         return "Zähler"
     elif component_type == ComponentType.FLEXIBLE_TARIFF:
-        return "Dynamischer Tarif"
+        return "Stromtarif"
     elif component_type == ComponentType.GRID_FEE:
         return "Netzentgelt"
     elif component_type == ComponentType.INVERTER:

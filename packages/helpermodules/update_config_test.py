@@ -769,7 +769,7 @@ def test_upgrade_datastore_160_tariff_without_provider_gets_old_grid_price_as_fi
 
     tariff = uc.all_received_topics["openWB/optional/ep/flexible_tariff/provider"]
     assert tariff["type"] == "fixed_price"
-    assert tariff["name"] == "Fester Stromtarif"
+    assert tariff["name"] == "Fester Preis"
     assert tariff["configuration"]["default_price"] == 0.00031
 
 
@@ -807,7 +807,7 @@ def test_upgrade_datastore_160_renames_fixed_hours_and_keeps_configuration(mock_
 
     tariff = uc.all_received_topics["openWB/optional/ep/flexible_tariff/provider"]
     assert tariff["type"] == "fixed_hours"
-    assert tariff["name"] == "Zeitabhängiger Tarif (HT/NT, z.B. §14a EnWG Modul 3)"
+    assert tariff["name"] == "Zeitabhängiger Tarif (HT/NT)"
     assert tariff["configuration"] == fixed["configuration"]
     fee = uc.all_received_topics["openWB/optional/ep/grid_fee/provider"]
     assert fee["name"] == "Feste Netzentgelte (z.B. §14a EnWG Modul 3)"

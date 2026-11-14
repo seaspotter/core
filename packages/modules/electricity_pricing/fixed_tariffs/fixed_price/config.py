@@ -12,7 +12,7 @@ class FixedPriceTariffConfiguration:
 
 @dataclass
 class FixedPriceTariff:
-    name: str = "Fester Stromtarif"
+    name: str = "Fester Preis"
     type: str = "fixed_price"
     official: bool = True
     configuration: FixedPriceTariffConfiguration = field(default_factory=FixedPriceTariffConfiguration)

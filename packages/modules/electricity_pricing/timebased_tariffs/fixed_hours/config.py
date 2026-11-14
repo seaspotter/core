@@ -48,7 +48,7 @@ class FixedHoursTariffConfiguration:
 
 @dataclass
 class FixedHoursTariff:
-    name: str = "Zeitabhängiger Tarif (HT/NT, z.B. §14a EnWG Modul 3)"
+    name: str = "Zeitabhängiger Tarif (HT/NT)"
     type: str = "fixed_hours"
     official: bool = False
     configuration: FixedHoursTariffConfiguration = field(default_factory=FixedHoursTariffConfiguration)
